@@ -100,8 +100,7 @@ class P2PProtocol:
         :return: a_peer_public_key, param_g, param_p.
         """
 
-        a_peer_public_key_size_size, param_g_size, param_p_size = conn.recv(3)
-        a_peer_public_key_size = cls._decode_int(conn.recv(a_peer_public_key_size_size))
+        a_peer_public_key_size, param_g_size, param_p_size = struct.unpack(">HBB", conn.recv(4))
         a_peer_public_key = cls._read_all(conn, a_peer_public_key_size)
         param_g = cls._read_all(conn, param_g_size)
         param_p = cls._read_all(conn, param_p_size)
@@ -120,11 +119,9 @@ class P2PProtocol:
         :param param_p: The prime parameter.
         """
 
-        a_peer_public_key_size_data = cls._encode_int(len(a_peer_public_key))
         param_g_data = cls._encode_int(param_g)
         param_p_data = cls._encode_int(param_p)
-        conn.send(bytes([len(a_peer_public_key_size_data), len(param_g_data), len(param_p_data)]))
-        conn.send(a_peer_public_key_size_data)
+        conn.send(struct.pack(">HBB", len(a_peer_public_key), len(param_g_data), len(param_p_data)))
         conn.sendall(a_peer_public_key)
         conn.sendall(param_g_data)
         conn.sendall(param_p_data)
@@ -258,27 +255,98 @@ class P2PProtocol:
 
     # ------------------------------ Tunneling ------------------------------ #
 
-    @staticmethod
-    def read_tunnel_req(conn: Union[socket.socket, EncryptedSocketWrapper]) -> bytes:
+    @classmethod
+    def read_tunnel_req(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[int, int, int, bytes, bytes]:
         """
         Reads the packet tunnel_req from the socket.
 
         :param conn: The connection.
-        :return: The tunnel request bytes.
+        :return: The number of hops, TTL, tunnel ID, public key and tunnel request data (encrypted for the endpoint).
         """
 
-        ...
+        hops, ttl, tunnel_id, tunnel_public_key_size, tunnel_request_data_size = struct.unpack(">HHqHH", conn.recv(10))
+        tunnel_public_key = cls._read_all(conn, tunnel_public_key_size)
+        tunnel_request_data = cls._read_all(conn, tunnel_request_data_size)
+
+        return hops, ttl, tunnel_id, tunnel_public_key, tunnel_request_data
 
     @staticmethod
-    def send_tunnel_req(conn: Union[socket.socket, EncryptedSocketWrapper], tunnel_req: bytes) -> None:
+    def send_tunnel_req(conn: Union[socket.socket, EncryptedSocketWrapper], hops: int, ttl: int,
+                        tunnel_id: int, tunnel_public_key: bytes, tunnel_request_data: bytes) -> None:
         """
         Sends the packet tunnel_req to the socket.
 
         :param conn: The connection.
-        :param tunnel_req: The tunnel request bytes.
+        :param hops: The number of hops.
+        :param ttl: The time to live.
+        :param tunnel_id: The tunnel ID.
+        :param tunnel_public_key: The tunnel public key.
+        :param tunnel_request_data: The tunnel request data (encrypted for the endpoint).
         """
 
-        ...
+        conn.send(struct.pack(">HHqHH", hops, ttl, tunnel_id, len(tunnel_public_key), len(tunnel_request_data)))
+        conn.sendall(tunnel_public_key)
+        conn.sendall(tunnel_request_data)
+
+    @classmethod
+    def read_tunnel_data(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[int, int, bytes]:
+        """
+        Reads the packet tunnel_data from the socket.
+
+        :param conn: The connection.
+        :return: The number of hops, TTL, tunnel ID and tunnel data (encrypted for the endpoint).
+        """
+
+        hops, tunnel_id, tunnel_data_size = struct.unpack(">HqH", conn.recv(12))
+        tunnel_data = cls._read_all(conn, tunnel_data_size)
+
+        return hops, tunnel_id, tunnel_data
+
+    @staticmethod
+    def send_tunnel_data(conn: Union[socket.socket, EncryptedSocketWrapper], hops: int, tunnel_id: int,
+                         tunnel_data: bytes) -> None:
+        """
+        Sends the packet tunnel_data to the socket.
+
+        :param conn: The connection.
+        :param hops: The number of hops.
+        :param tunnel_id: The tunnel ID.
+        :param tunnel_data: The tunnel data.
+        """
+
+        conn.send(struct.pack(">HqH", hops, tunnel_id, len(tunnel_data)))
+        conn.sendall(tunnel_data)
+
+    @classmethod
+    def read_tunnel_close(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[int, bytes, bytes]:
+        """
+        Reads the packet tunnel_close from the socket.
+
+        :param conn: The connection.
+        :return: The tunnel ID, random data and the signature of the random data.
+        """
+
+        tunnel_id, random_data_size, signature_size = struct.unpack(">qHH", conn.recv(12))
+        random_data = cls._read_all(conn, random_data_size)
+        signature = cls._read_all(conn, signature_size)
+
+        return tunnel_id, random_data, signature
+
+    @staticmethod
+    def send_tunnel_close(conn: Union[socket.socket, EncryptedSocketWrapper], tunnel_id: int, random_data: bytes,
+                          signature: bytes) -> None:
+        """
+        Sends the packet tunnel_close to the socket.
+
+        :param conn: The connection.
+        :param tunnel_id: The tunnel ID.
+        :param random_data: The random data.
+        :param signature: The signature of the random data.
+        """
+
+        conn.send(struct.pack(">qHH", tunnel_id, len(random_data), len(signature)))
+        conn.sendall(random_data)
+        conn.sendall(signature)
 
     class Intent(Enum):
         """

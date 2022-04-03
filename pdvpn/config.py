@@ -33,18 +33,20 @@ e+IVrwO0B0R7DCH/vbeb4fIPxYHu7wndP55HUEFnCJ3O8jFwqY6eWdQyi+wrY8MJ
 -----END PUBLIC KEY-----"""
 
 CLIENT = "py3"  # Client name/type
-VERSION = "0.1.1"  # Client version
+VERSION = "0.1.2"  # Client version
 
 RSA_KEY_SIZE = 2048
 DHKE_KEY_SIZE = 512
+
+KEEPALIVE_INTERVAL = 60  # Second(s)
+
+TUNNEL_TIMEOUT = 60  # Seconds
 
 # ------------------------------ Data provider stuff ------------------------------ #
 
 DATA_FILE = "vpnconf"
 
 # ------------------------------ Connection stuff ------------------------------ #
-
-KEEPALIVE_INTERVAL = 60  # Second(s)
 
 INITIAL_NODE = True  # Are we the initial node on the network?
 

@@ -3,12 +3,10 @@ import logging
 import os
 import socket
 import threading
-import time
 from typing import Tuple, Union
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import dh
-from cryptography.hazmat.primitives.asymmetric.dh import DHPublicKey
 
 from .protocol import P2PProtocol
 from .. import config, encryption
@@ -204,13 +202,18 @@ class Peer(threading.Thread):
         # Tunneling
 
         elif intent == P2PProtocol.Intent.TUNNEL_REQ:
-            ...
+            hops, ttl, tunnel_id, tunnel_public_key, tunnel_data = P2PProtocol.read_tunnel_req(self.conn)
+            tunnel = Tunnel(tunnel_id, tunnel_public_key)
+
+            self.local.on_tunnel_req(hops, ttl, tunnel, tunnel_data, self)
 
         elif intent == P2PProtocol.Intent.TUNNEL_DATA:
-            ...
+            hops, tunnel_id, tunnel_data = P2PProtocol.read_tunnel_data(self.conn)
+            self.local.on_tunnel_data(hops, tunnel_id, tunnel_data, self)
 
         elif intent == P2PProtocol.Intent.TUNNEL_CLOSE:
-            ...
+            tunnel_id, random_data, signature = P2PProtocol.read_tunnel_close(self.conn)
+            self.local.on_tunnel_close(tunnel_id, random_data, signature, self)
 
     # ------------------------------ Connection management ------------------------------ #
 
@@ -304,5 +307,57 @@ class Peer(threading.Thread):
         else:
             raise ConnectionError("Peer is not ready.")
 
+    def send_tunnel_request(self, hops: int, ttl: int, tunnel: "Tunnel", tunnel_data: bytes) -> None:
+        """
+        Sends a tunnel request to the peer.
+
+        :param hops: The number of hops that have occurred.
+        :param ttl: The time-to-live of this request.
+        :param tunnel: The tunnel in question.
+        :param tunnel_data: The data to send.
+        """
+
+        if self.ready:
+            with self._lock:
+                P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.TUNNEL_REQ)
+                # noinspection PyProtectedMember
+                P2PProtocol.send_tunnel_req(
+                    self.conn, hops, ttl, tunnel.tunnel_id,
+                    tunnel.public_key.public_bytes(
+                        encoding=serialization.Encoding.DER,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                    ),
+                    tunnel_data,
+                )
+
+    def send_tunnel_data(self, hops: int, tunnel_id: int, tunnel_data: bytes) -> None:
+        """
+        Sends tunnel data to the peer.
+
+        :param hops: The number of hops that have occurred.
+        :param tunnel_id: The ID of the tunnel.
+        :param tunnel_data: The data to send.
+        """
+
+        if self.ready:
+            with self._lock:
+                P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.TUNNEL_DATA)
+                P2PProtocol.send_tunnel_data(self.conn, hops, tunnel_id, tunnel_data)
+
+    def send_tunnel_close(self, tunnel_id: int, random_data: bytes, signature: bytes) -> None:
+        """
+        Sends a tunnel close to the peer.
+
+        :param tunnel_id: The ID of the tunnel.
+        :param random_data: Random data.
+        :param signature: The signature of the random data.
+        """
+
+        if self.ready:
+            with self._lock:
+                P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.TUNNEL_CLOSE)
+                P2PProtocol.send_tunnel_close(self.conn, tunnel_id, random_data, signature)
+
 
 from ..local import Local
+from ..tunnel import Tunnel
