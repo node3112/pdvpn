@@ -1,0 +1,14 @@
+# General stuff
+.idea/
+**/__pycache__/
+
+# Project specifics
+vpnconf/
+vpnconf-client/
+vpnconf-server/
+
+# TODO: Remove this later, obviously
+# We don't want to leak the private key
+private.pem
+
+
