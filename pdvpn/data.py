@@ -10,7 +10,7 @@ from typing import List, Tuple, Union
 from cryptography.hazmat.primitives import serialization
 from typing.io import IO
 
-from . import config
+from . import config, encryption
 from .info import NodeList, PeerInfo
 
 
@@ -216,12 +216,16 @@ class DataGenerator(DataProvider):
         logger.info("Generating new keypair with size %i bytes..." % key_size)
 
         # Key size of 2048 is standard for regular nodes, but can be increased for user nodes
-        rsa_key = rsa.generate_private_key(public_exponent=65537, key_size=key_size)
-        public_key = rsa_key.public_key().public_bytes(encoding=serialization.Encoding.PEM,
-                                                       format=serialization.PublicFormat.SubjectPublicKeyInfo)
-        private_key = rsa_key.private_bytes(encoding=serialization.Encoding.PEM,
-                                            format=serialization.PrivateFormat.PKCS8,
-                                            encryption_algorithm=serialization.NoEncryption())
+        public_key, private_key = encryption.generate_rsa_keypair(key_size=key_size)
+        public_key = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        private_key = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
 
         logging.debug("Public key:")
         logging.debug(public_key.decode("utf-8"))

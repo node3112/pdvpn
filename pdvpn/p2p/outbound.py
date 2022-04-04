@@ -21,7 +21,8 @@ class OutboundPeer(Peer):
 
     def run(self) -> None:
         try:
-            self._handshake(outbound=True)
+            with self._lock:
+                self._handshake(outbound=True)
         except Exception as error:
             self.logger.error("Failed to complete handshake with %s:%d." % (self.hostname, self.port), exc_info=True)
             self.disconnect("failed handshake")
@@ -34,7 +35,8 @@ class OutboundPeer(Peer):
                 self._handle_intent(intent)
 
                 if intent == P2PProtocol.Intent.KEEP_ALIVE:
-                    P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.KEEP_ALIVE)
+                    with self._lock:
+                        P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.KEEP_ALIVE)
 
         except Exception as error:
             if self.connected:  # Might have been disconnected in another thread

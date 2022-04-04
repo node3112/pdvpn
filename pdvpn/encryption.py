@@ -1,9 +1,29 @@
 #!/usr/bin/env python3
 
 import socket
+from typing import Tuple
 
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey, RSAPrivateKey
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.base import _AEADEncryptionContext, _AEADCipherContext
+
+
+def generate_rsa_keypair(public_exponent: int = 65537, key_size: int = 2048) -> Tuple[RSAPublicKey, RSAPrivateKey]:
+    """
+    Creates an RSA key pair.
+
+    :param public_exponent: The public exponent.
+    :param key_size: The key size.
+    :return: The RSA key pair.
+    """
+
+    private_key = rsa.generate_private_key(
+        public_exponent=public_exponent,
+        key_size=key_size,
+    )
+
+    return private_key.public_key(), private_key
 
 
 def get_cipher_from_secrets(shared_key: bytes, iv: bytes) -> Cipher:

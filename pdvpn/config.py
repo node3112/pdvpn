@@ -37,14 +37,19 @@ VERSION = "0.1.2"  # Client version
 
 RSA_KEY_SIZE = 2048
 DHKE_KEY_SIZE = 512
+TUNNEL_RSA_KEY_SIZE = 1024
 
-KEEPALIVE_INTERVAL = 60  # Second(s)
-
-TUNNEL_TIMEOUT = 60  # Seconds
+KEEPALIVE_INTERVAL = 60  # Seconds
+TUNNEL_EXPIRY = 60  # Seconds
 
 # ------------------------------ Data provider stuff ------------------------------ #
 
 DATA_FILE = "vpnconf"
+
+# ------------------------------ Tunnel stuff ------------------------------ #
+
+TUNNEL_TIMEOUT = 30  # Seconds
+TUNNEL_RANDOM_SIZE = 32
 
 # ------------------------------ Connection stuff ------------------------------ #
 

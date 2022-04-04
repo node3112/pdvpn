@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import logging
 import os
 import socket
@@ -127,7 +128,7 @@ class Peer(threading.Thread):
             else:
                 intent = P2PProtocol.read_intent(self.conn, self.address)
                 if intent != P2PProtocol.Intent.FIN:
-                    raise Exception("Handshake failed, %s receieved." % intent.name)
+                    raise Exception("Handshake failed, %s received." % intent.name)
                 P2PProtocol.read_fin(self.conn)
                 P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.FIN_ACK)
 
@@ -203,9 +204,9 @@ class Peer(threading.Thread):
 
         elif intent == P2PProtocol.Intent.TUNNEL_REQ:
             hops, ttl, tunnel_id, tunnel_public_key, tunnel_data = P2PProtocol.read_tunnel_req(self.conn)
-            tunnel = Tunnel(tunnel_id, tunnel_public_key)
+            tunnel = Tunnel(self.local, tunnel_id, tunnel_public_key)
 
-            self.local.on_tunnel_req(hops, ttl, tunnel, tunnel_data, self)
+            self.local.on_tunnel_request(hops, ttl, tunnel, tunnel_data, self)
 
         elif intent == P2PProtocol.Intent.TUNNEL_DATA:
             hops, tunnel_id, tunnel_data = P2PProtocol.read_tunnel_data(self.conn)
@@ -252,22 +253,23 @@ class Peer(threading.Thread):
             self.local.unpaired_peers.remove(self)
 
         if self.connected:
-            if self.conn is not None:
-                try:
-                    P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.DISCONNECT)
-                    P2PProtocol.send_disconnect(self.conn, reason)
-                    self.conn.close()
+            with self._lock:  # Don't want errors occurring
+                if self.conn is not None:
+                    try:
+                        P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.DISCONNECT)
+                        P2PProtocol.send_disconnect(self.conn, reason)
+                        self.conn.close()
 
-                except Exception:
-                    ...
+                    except Exception:
+                        ...
+
+                self.connected = False
+                self.ready = False
 
             if self._node_list_req is not None:  # Disconnected, so update immediately
                 self._node_list_req.set()
 
             self.conn = None
-
-            self.connected = False
-            self.ready = False
 
             self.logger.info("Disconnected from %s:%i: %r." % (self.address + (reason,)))
 

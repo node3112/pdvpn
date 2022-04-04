@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import bz2
 import logging
 import os
@@ -135,8 +136,7 @@ class P2PProtocol:
         :return: b_peer_public_key and the init vector.
         """
 
-        b_peer_public_key_size_size = conn.recv(1)[0]
-        b_peer_public_key_size = cls._decode_int(conn.recv(b_peer_public_key_size_size))
+        b_peer_public_key_size = int.from_bytes(conn.recv(2), "big", signed=False)
         b_peer_public_key = cls._read_all(conn, b_peer_public_key_size)
         init_vector = conn.recv(16)
 
@@ -153,9 +153,7 @@ class P2PProtocol:
         :param init_vector: The init vector.
         """
 
-        b_peer_public_key_size = cls._encode_int(len(b_peer_public_key))
-        conn.send(bytes([len(b_peer_public_key_size)]))
-        conn.send(b_peer_public_key_size)
+        conn.send(len(b_peer_public_key).to_bytes(2, "big", signed=False))
         conn.sendall(b_peer_public_key)
         conn.send(init_vector)
 
@@ -167,8 +165,8 @@ class P2PProtocol:
         :param conn: The connection.
         """
 
-        to_read = conn.recv(1)[0]  # Should be a random number, if the encryption did not work, this will fail
-        cls._read_all(conn, to_read)
+        num_bytes = conn.recv(1)[0]  # Should be a random number, if the encryption did not work, this will fail
+        cls._read_all(conn, num_bytes)
 
     @staticmethod
     def send_fin(conn: Union[socket.socket, EncryptedSocketWrapper]) -> None:
