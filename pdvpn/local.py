@@ -130,7 +130,19 @@ class Local:
         # data to, either direction.
         tunnel.next_hop = peer
 
-        not_owner = True
+        # We should pass this on, even if we are the intended endpoint of the request, because if we didn't and one of
+        # our peers were malicious, they could recognise the fact that we didn't send them the request, and conclude
+        # that we were the tunnel endpoint.
+        if ttl < 0:  # Don't send if we have already reached the TTL limit
+            self.logger.debug("Tunnel request from %s:%i failed, TTL expired." % peer.address)
+        else:
+            for peer_ in self.paired_peers:
+                if peer != peer_ and peer.connected and peer.ready:  # Don't send it backwards, that would be dumb
+                    try:
+                        peer_.send_tunnel_request(hops + 1, ttl - 1, tunnel, tunnel_data)
+                    except Exception as error:
+                        self.logger.error("Error while passing tunnel request to %s:%i." % peer_.address, exc_info=True)
+
         if not skip_owner_check:
             try:
                 tunnel_data = self.__private_key.decrypt(
@@ -141,26 +153,11 @@ class Local:
                         label=None,
                     )
                 )
-                not_owner = False
+
+                # TODO: Tunneling protocol stuff here
 
             except ValueError:  # We aren't the tunnel endpoint
-                ...  # not_owner = True
-
-        if not_owner:
-            if ttl < 0:  # Don't send if we have already reached the TTL limit
-                self.logger.debug("Tunnel request from %s:%i failed, TTL expired." % peer.address)
-                return
-
-            for peer_ in self.paired_peers:
-                if peer != peer_ and peer.connected and peer.ready:  # Don't send it backwards, that would be dumb
-                    try:
-                        peer_.send_tunnel_request(hops + 1, ttl - 1, tunnel, tunnel_data)
-                    except Exception as error:
-                        self.logger.error("Error while passing tunnel request to %s:%i." % peer_.address, exc_info=True)
-
-            return
-
-        ...  # TODO: Tunneling protocol stuff
+                ...  # owner = False
 
     def on_tunnel_data(self, hops: int, tunnel_id: int, tunnel_data: bytes, peer: Union["Peer", None]) -> None:
         """
