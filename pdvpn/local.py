@@ -89,7 +89,7 @@ class Local:
         Finds network entrypoints.
         """
 
-        return [PeerInfo("localhost", 5002)]  # TODO: Implement
+        return [PeerInfo("spleefnet.ninja", 5001)]  # TODO: Implement
 
     def _get_node_list(self, entrypoints: List["PeerInfo"]) -> Union[Tuple["NodeList", "Peer"], Tuple[None, None]]:
         """
@@ -341,19 +341,29 @@ class Local:
                 return
 
             node_list, entrypoint_peer = self._get_node_list(entrypoints)
-            if not node_list:
-                self.logger.fatal("No valid node list found, cannot connect to network.")
+            if entrypoint_peer is None:
+                self.logger.fatal("All known entrypoints are offline, unable to connect to network.")
                 self.running = False
                 return
 
             if self.node_list is not None and self.node_list.verify_signature(self):  # Is our node list valid?
-                if self.node_list.valid_until < node_list.valid_until:
+                if node_list is not None and self.node_list.valid_until < node_list.valid_until:
                     self.logger.info("Node list is outdated, updating...")
                     self.node_list = node_list
                     self.data_provider.set_nodes(self.node_list)  # Save the new node list
                 else:
-                    self.logger.debug("Our node list is up-to-date, yay!")
+                    if node_list is not None:  # Check we were actually given one
+                        self.logger.debug("Our node list is up-to-date, yay!")
                     node_list = self.node_list  # Use our node list, not whatever the entrypoint gave us
+
+            elif node_list is not None:
+                self.node_list = node_list
+                self.data_provider.set_nodes(self.node_list)
+
+            if not node_list:
+                self.logger.fatal("No valid node list found, cannot connect to network.")
+                self.running = False
+                return
 
             self._check_inid(node_list)  # Make sure our INID is valid
 

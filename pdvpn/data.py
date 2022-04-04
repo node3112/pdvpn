@@ -8,7 +8,6 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple, Union
 
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 from typing.io import IO
 
 from . import config
@@ -181,7 +180,7 @@ class FileDataProvider(DataProvider):
             return node_list
 
     def set_nodes(self, nodes: NodeList) -> None:
-        with self._open("nodes.pckl", "wb") as fileobj:
+        with self._open("nodes.bin", "wb") as fileobj:
             fileobj.write(nodes.serialize())
 
     def get_peers(self) -> List[PeerInfo]:
