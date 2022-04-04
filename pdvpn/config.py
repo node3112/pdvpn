@@ -33,7 +33,7 @@ e+IVrwO0B0R7DCH/vbeb4fIPxYHu7wndP55HUEFnCJ3O8jFwqY6eWdQyi+wrY8MJ
 -----END PUBLIC KEY-----"""
 
 CLIENT = "py3"  # Client name/type
-VERSION = "0.1.2"  # Client version
+VERSION = "0.1.3"  # Client version
 
 RSA_KEY_SIZE = 2048
 DHKE_KEY_SIZE = 512
