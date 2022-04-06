@@ -11,7 +11,7 @@ from . import Tunnel
 logger = logging.getLogger("pdvpn.tunnel.protocol")
 
 
-class TunnelingProtocol:
+class TunnelingProtocol:  # TODO: HMAC support
     """
     The tunneling protocol "packets".
     """
@@ -29,7 +29,7 @@ class TunnelingProtocol:
         """
 
         intent = TunnelingProtocol.Intent(data.read(1)[0])
-        logger.debug("TID %x <- %s" % (tunnel.tunnel_id, intent.name))
+        logger.debug("TID %x -> %s" % (tunnel.tunnel_id, intent.name))
         return intent
 
     @staticmethod
@@ -42,7 +42,7 @@ class TunnelingProtocol:
         :param intent: The intent.
         """
 
-        logger.debug("TID %x -> %s" % (tunnel.tunnel_id, intent.name))
+        logger.debug("TID %x <- %s" % (tunnel.tunnel_id, intent.name))
         data.write(bytes([intent.value]))
 
     # ------------------------------ Tunnel "maintenance" ------------------------------ #

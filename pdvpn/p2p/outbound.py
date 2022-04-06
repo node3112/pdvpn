@@ -25,7 +25,6 @@ class OutboundPeer(Peer):
             self.disconnect("failed handshake")
             return
 
-
         try:
             while self.connected:
                 intent = self._receive_intent()
