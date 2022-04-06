@@ -22,6 +22,7 @@ class PeerDiscoverer:
 
     # ------------------------------ Hidden methods ------------------------------ #
 
+    # noinspection PyMethodMayBeStatic
     def _find_entrypoints(self) -> List["PeerInfo"]:
         """
         Finds network entrypoints.
@@ -37,7 +38,7 @@ class PeerDiscoverer:
         potential_node_lists: List[Tuple[NodeList, PeerInfo]] = []
 
         for entrypoint in entrypoints:
-            self.logger.info("Attempting to connect to entrypoint %s:%i..." % entrypoint.address)
+            self.logger.info("Connecting to entrypoint %s:%i..." % entrypoint.address)
 
             try:
                 # All entrypoints are outbound, obviously
@@ -46,9 +47,10 @@ class PeerDiscoverer:
                 peer.start()
 
             except Exception as error:
-                self.logger.error("Error while connecting to entrypoint %s:%i." % entrypoint.address, exc_info=True)
+                self.logger.error("Error while connecting to %s:%i." % entrypoint.address, exc_info=True)
                 continue
 
+            # FIXME: There has to be a better way of doing this, threading.Event() or asyncio?
             while not peer.ready and peer.connected:  # Wait until it is ready, or until it disconnects
                 time.sleep(0.05)
 
@@ -57,11 +59,10 @@ class PeerDiscoverer:
                 continue
 
             try:
-                self.logger.info("Receiving node list from entrypoint %s:%i..." % entrypoint.address)
+                self.logger.debug("Receiving node list from %s:%i..." % entrypoint.address)
                 node_list = peer.request_node_list()
             except Exception as error:
-                self.logger.error("Error while requesting node list from entrypoint %s:%i." % entrypoint.address,
-                                  exc_info=True)
+                self.logger.error("Error while requesting node list from %s:%i." % entrypoint.address, exc_info=True)
                 peer.disconnect("nodelist error")
                 peer.join()
                 continue
@@ -139,7 +140,6 @@ class PeerDiscoverer:
     # ------------------------------ Public methods ------------------------------ #
 
     def discover(self) -> Union[List["PeerInfo"], None]:
-
         entrypoints = self._find_entrypoints()
         if not entrypoints:
             self.logger.fatal("No entrypoints found, cannot connect to network.")
@@ -173,7 +173,33 @@ class PeerDiscoverer:
             self.logger.fatal("No potential peers found, cannot connect to network.")
             return None
 
-        self.logger.info("Discovered %i potential peer(s)." % len(potential_peers))
+        while not entrypoint_peer.ready and entrypoint_peer.connected:
+            time.sleep(0.05)
+
+        if not entrypoint_peer.connected:
+            self.logger.warning("Entrypoint peer %s:%i disconnected." % entrypoint_peer.address)
+            return None  # TODO: What to do here, try again?
+
+        self.logger.debug("Discovered %i potential peer(s)." % len(potential_peers))
+        for potential_peer in potential_peers:
+            self.logger.debug("Tunneling to potential peer with INID %x..." % potential_peer.inid)
+            tunnel = self.local.tunnel_handler.create_tunnel(potential_peer.inid)
+            if tunnel is None:
+                self.logger.debug("Failed to tunnel to potential peer with INID %x." % potential_peer.inid)
+                continue
+
+            try:
+                tunnel.open(timeout=10)
+            except Exception as error:
+                self.logger.debug("Failed to open tunnel to potential peer with INID %x." % potential_peer.inid,
+                                  exc_info=True)
+
+        else:
+            while True:
+                time.sleep(0.05)
+
+            self.logger.fatal("Failed to connect to any potential peers.")
+            return None  # TODO: Try again?
 
         return []
 

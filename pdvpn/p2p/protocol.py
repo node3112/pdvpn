@@ -73,7 +73,7 @@ class P2PProtocol:
 
         intent = P2PProtocol.Intent(conn.recv(1)[0])
 
-        logger.debug("%s:%i <- %s" % (address + (intent.name,)))
+        logger.debug("%s:%i -> %s" % (address + (intent.name,)))
         return intent
 
     @staticmethod
@@ -87,7 +87,7 @@ class P2PProtocol:
         :param intent: The intent.
         """
 
-        logger.debug("%s:%i -> %s" % (address + (intent.name,)))
+        logger.debug("%s:%i <- %s" % (address + (intent.name,)))
         conn.send(bytes([intent.value]))
 
     # ------------------------------ Handshake ------------------------------ #
@@ -206,7 +206,7 @@ class P2PProtocol:
         """
 
         reason_data = reason.encode("utf-8")
-        if len(reason_data) > 255:
+        if len(reason_data) > 255:  # FIXME: Maybe don't throw?
             raise ValueError("The reason is too long.")
         conn.send(bytes([len(reason_data)]))
         conn.send(reason_data)
@@ -254,66 +254,81 @@ class P2PProtocol:
     # ------------------------------ Tunneling ------------------------------ #
 
     @classmethod
-    def read_tunnel_req(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[int, int, int, bytes, bytes]:
+    def read_tunnel_req(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[int, int, int, bytes, bytes,
+                                                                                          bytes, bytes, bytes]:
         """
         Reads the packet tunnel_req from the socket.
 
         :param conn: The connection.
-        :return: The number of hops, TTL, tunnel ID, public key and tunnel request data (encrypted for the endpoint).
+        :return: The number of hops, tunnel ID, public key, hashed test data, test data encrypted with the node's
+                 public key, the shared tunnel key and tunnel metadata encrypted with the shared tunnel key.
         """
 
-        hops, ttl, tunnel_id, tunnel_public_key_size, tunnel_request_data_size = struct.unpack(">HHqHH", conn.recv(10))
-        tunnel_public_key = cls._read_all(conn, tunnel_public_key_size)
-        tunnel_request_data = cls._read_all(conn, tunnel_request_data_size)
+        hops, tunnel_id, public_key_size, tunnel_key_size, data_size = struct.unpack(">IqHHH", conn.recv(18))
 
-        return hops, ttl, tunnel_id, tunnel_public_key, tunnel_request_data
+        public_key = cls._read_all(conn, public_key_size)
+        test_data_hash = conn.recv(32)
+        test_data_encrypted = cls._read_all(conn, tunnel_key_size)
+        shared_key = cls._read_all(conn, tunnel_key_size)
+        data = cls._read_all(conn, data_size)
+
+        # noinspection PyTypeChecker
+        return hops, tunnel_id, public_key, test_data_hash, test_data_encrypted, shared_key, data
 
     @staticmethod
-    def send_tunnel_req(conn: Union[socket.socket, EncryptedSocketWrapper], hops: int, ttl: int,
-                        tunnel_id: int, tunnel_public_key: bytes, tunnel_request_data: bytes) -> None:
+    def send_tunnel_req(conn: Union[socket.socket, EncryptedSocketWrapper], hops: int, tunnel_id: int,
+                        public_key: bytes, test_data_hash: bytes, test_data_encrypted: bytes, shared_key: bytes,
+                        data: bytes) -> None:
         """
         Sends the packet tunnel_req to the socket.
 
         :param conn: The connection.
-        :param hops: The number of hops.
-        :param ttl: The time to live.
+        :param hops: The number of hops that have been made.
         :param tunnel_id: The tunnel ID.
-        :param tunnel_public_key: The tunnel public key.
-        :param tunnel_request_data: The tunnel request data (encrypted for the endpoint).
+        :param public_key: The public key.
+        :param test_data_hash: The hash of the test data.
+        :param test_data_encrypted: The test data encrypted with the node's public key.
+        :param shared_key: The shared tunnel key.
+        :param data: The tunnel metadata encrypted with the shared tunnel key.
         """
+        
+        # TODO: Honestly, might be better to let it overflow since it'll kick malicious nodes
+        if hops >= 2**32:
+            hops = 0
 
-        conn.send(struct.pack(">HHqHH", hops, ttl, tunnel_id, len(tunnel_public_key), len(tunnel_request_data)))
-        conn.sendall(tunnel_public_key)
-        conn.sendall(tunnel_request_data)
+        conn.send(struct.pack(">IqHHH", hops, tunnel_id, len(public_key), len(test_data_encrypted), len(data)))
+        conn.sendall(public_key)
+        conn.send(test_data_hash)
+        conn.sendall(test_data_encrypted)
+        conn.sendall(shared_key)
+        conn.sendall(data)
 
     @classmethod
-    def read_tunnel_data(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[int, int, bytes]:
+    def read_tunnel_data(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[int, bytes]:
         """
         Reads the packet tunnel_data from the socket.
 
         :param conn: The connection.
-        :return: The number of hops, TTL, tunnel ID and tunnel data (encrypted for the endpoint).
+        :return: The tunnel ID and tunnel data (encrypted for the endpoint).
         """
 
-        hops, tunnel_id, tunnel_data_size = struct.unpack(">HqH", conn.recv(12))
-        tunnel_data = cls._read_all(conn, tunnel_data_size)
+        tunnel_id, data_size = struct.unpack(">qH", conn.recv(10))
+        data = cls._read_all(conn, data_size)
 
-        return hops, tunnel_id, tunnel_data
+        return tunnel_id, data
 
     @staticmethod
-    def send_tunnel_data(conn: Union[socket.socket, EncryptedSocketWrapper], hops: int, tunnel_id: int,
-                         tunnel_data: bytes) -> None:
+    def send_tunnel_data(conn: Union[socket.socket, EncryptedSocketWrapper], tunnel_id: int, data: bytes) -> None:
         """
         Sends the packet tunnel_data to the socket.
 
         :param conn: The connection.
-        :param hops: The number of hops.
         :param tunnel_id: The tunnel ID.
-        :param tunnel_data: The tunnel data.
+        :param data: The tunnel data.
         """
 
-        conn.send(struct.pack(">HqH", hops, tunnel_id, len(tunnel_data)))
-        conn.sendall(tunnel_data)
+        conn.send(struct.pack(">qH", tunnel_id, len(data)))
+        conn.sendall(data)
 
     @classmethod
     def read_tunnel_close(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[int, bytes, bytes]:

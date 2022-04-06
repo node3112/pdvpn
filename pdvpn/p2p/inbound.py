@@ -24,7 +24,7 @@ class InboundPeerListener(threading.Thread):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     def run(self) -> None:
-        self.logger.info("Starting inbound peer listener...")
+        self.logger.debug("Starting inbound peer listener...")
 
         self.server.bind((config.INBOUND_HOSTNAME, config.INBOUND_PORT))
         self.server.listen(5)
@@ -51,7 +51,7 @@ class InboundPeerListener(threading.Thread):
 
         self.server.close()
 
-        self.logger.info("Stopped inbound peer listener.")
+        self.logger.debug("Stopped inbound peer listener.")
 
 
 class InboundPeer(Peer):

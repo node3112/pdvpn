@@ -49,7 +49,9 @@ DATA_FILE = "vpnconf"
 # ------------------------------ Tunnel stuff ------------------------------ #
 
 TUNNEL_TIMEOUT = 30  # Seconds
-TUNNEL_RANDOM_SIZE = 32
+# TODO: Uh idk prolly proper data to sign, like the time?
+TUNNEL_DATA_RANDOM_SIZE = 16  # The distinction is so that one can't be copied
+TUNNEL_CLOSE_RANDOM_SIZE = 32
 
 # ------------------------------ Connection stuff ------------------------------ #
 

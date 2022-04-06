@@ -65,7 +65,7 @@ def gen_nlist() -> None:
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
 
-    logging.debug("Local node INID is %i." % inid)
+    logging.debug("Local node INID is %x." % inid)
 
     node_list = data_provider.get_nodes()
     if node_list is None:
@@ -106,6 +106,7 @@ def gen_nlist() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(format="[%(name)s] [%(levelname)s] %(message)s", level=logging.DEBUG)
+    # logging.getLogger("pdvpn.tunnel").setLevel(logging.DEBUG)
 
     if sys.argv[1] == "local":
         run_local()

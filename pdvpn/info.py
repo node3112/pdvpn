@@ -10,6 +10,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
+# TODO: UserList, ties UIDs to public keys
+
 
 class NodeList(dict):
     """
@@ -148,7 +150,7 @@ class NodeList(dict):
             self.geolocation = geolocation
 
         def __repr__(self) -> str:
-            return "NodeInfo(inid=%i)" % self.inid
+            return "NodeInfo(inid=%x)" % self.inid
 
         def __eq__(self, other: Any) -> bool:
             if isinstance(other, NodeList.NodeInfo):  # Geolocation is subject to change

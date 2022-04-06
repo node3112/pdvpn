@@ -2,11 +2,8 @@
 
 import logging
 import socket
-import time
-from typing import Union
 
 from . import Peer, P2PProtocol
-from ..info import NodeList
 
 
 class OutboundPeer(Peer):

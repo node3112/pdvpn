@@ -55,7 +55,7 @@ class Peer(threading.Thread):
         """
 
         if not self.ready:
-            self.logger.info("Handshaking with %s:%i..." % self.address)
+            self.logger.debug("Handshaking with %s:%i..." % self.address)
 
             if outbound:  # We're connecting to them
                 self.logger.debug("Generating DHKE parameters...")
@@ -135,7 +135,9 @@ class Peer(threading.Thread):
             self.logger.debug("Secure connection established.")
 
             self.ready = True
-            self.logger.info("Handshake with %s:%i complete." % self.address)
+            self.logger.debug("Handshake with %s:%i complete." % self.address)
+            
+            self.local.peer_handler.on_peer_connected(self, outbound=outbound)  # We are now a usable peer connection
 
     def _receive_intent(self) -> Union[P2PProtocol.Intent, None]:
         """
@@ -159,12 +161,12 @@ class Peer(threading.Thread):
         """
 
         if intent == P2PProtocol.Intent.DISCONNECT:
-            self.logger.info("Disconnect reason: %r" % P2PProtocol.read_disconnect(self.conn))
-            self.disconnect("intent")
+            self.logger.debug("Disconnect reason: %r" % P2PProtocol.read_disconnect(self.conn))
+            self.disconnect("intent")  # Don't echo back
 
         # Node list
 
-        elif intent == P2PProtocol.Intent.NLIST_REQ:  # TODO: Will people request us to send our node list?
+        elif intent == P2PProtocol.Intent.NLIST_REQ:
             self.logger.debug("%s:%i requested node list." % self.address)
 
             with self._lock:
@@ -203,18 +205,14 @@ class Peer(threading.Thread):
         # Tunneling
 
         elif intent == P2PProtocol.Intent.TUNNEL_REQ:
-            hops, ttl, tunnel_id, tunnel_public_key, tunnel_data = P2PProtocol.read_tunnel_req(self.conn)
-            tunnel = Tunnel(self.local, tunnel_id, tunnel_public_key)
-
-            self.local.on_tunnel_request(hops, ttl, tunnel, tunnel_data, self)
+            self.local.tunnel_handler.on_tunnel_request(*P2PProtocol.read_tunnel_req(self.conn), self)
 
         elif intent == P2PProtocol.Intent.TUNNEL_DATA:
-            hops, tunnel_id, tunnel_data = P2PProtocol.read_tunnel_data(self.conn)
-            self.local.on_tunnel_data(hops, tunnel_id, tunnel_data, self)
+            self.local.tunnel_handler.on_tunnel_data(*P2PProtocol.read_tunnel_data(self.conn), self)
 
         elif intent == P2PProtocol.Intent.TUNNEL_CLOSE:
             tunnel_id, random_data, signature = P2PProtocol.read_tunnel_close(self.conn)
-            self.local.on_tunnel_close(tunnel_id, random_data, signature, self)
+            self.local.tunnel_handler.on_tunnel_close(tunnel_id, random_data, signature, self)
 
     # ------------------------------ Connection management ------------------------------ #
 
@@ -237,9 +235,6 @@ class Peer(threading.Thread):
             self.connected = True
             self.ready = False
 
-            if not self in self.local.unpaired_peers:
-                self.local.unpaired_peers.append(self)
-
     def disconnect(self, reason: str = "unknown") -> None:
         """
         Disconnects this peer.
@@ -247,12 +242,9 @@ class Peer(threading.Thread):
         :param reason: A reason for the disconnection.
         """
 
-        if self in self.local.paired_peers:
-            self.local.paired_peers.remove(self)
-        if self in self.local.unpaired_peers:
-            self.local.unpaired_peers.remove(self)
-
         if self.connected:
+            self.local.peer_handler.on_peer_disconnected(self, reason=reason)
+            
             with self._lock:  # Don't want errors occurring
                 if self.conn is not None:
                     try:
@@ -271,11 +263,9 @@ class Peer(threading.Thread):
 
             self.conn = None
 
-            self.logger.info("Disconnected from %s:%i: %r." % (self.address + (reason,)))
-
     # ------------------------------ Interfacing with the peer ------------------------------ #
 
-    def request_node_list(self, timeout: int = 30) -> Union[NodeList, None]:
+    def request_node_list(self, timeout: float = 30) -> Union[NodeList, None]:
         """
         Requests the node list from the peer.
 
@@ -309,42 +299,30 @@ class Peer(threading.Thread):
         else:
             raise ConnectionError("Peer is not ready.")
 
-    def send_tunnel_request(self, hops: int, ttl: int, tunnel: "Tunnel", tunnel_data: bytes) -> None:
+    def send_tunnel_request(self, hops: int, tunnel_id: int, public_key: bytes, test_data_hash: bytes,
+                            test_data_encrypted: bytes, shared_key: bytes, data: bytes) -> None:
         """
         Sends a tunnel request to the peer.
-
-        :param hops: The number of hops that have occurred.
-        :param ttl: The time-to-live of this request.
-        :param tunnel: The tunnel in question.
-        :param tunnel_data: The data to send.
         """
 
         if self.ready:
             with self._lock:
                 P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.TUNNEL_REQ)
-                # noinspection PyProtectedMember
-                P2PProtocol.send_tunnel_req(
-                    self.conn, hops, ttl, tunnel.tunnel_id,
-                    tunnel.public_key.public_bytes(
-                        encoding=serialization.Encoding.DER,
-                        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-                    ),
-                    tunnel_data,
-                )
+                P2PProtocol.send_tunnel_req(self.conn, hops, tunnel_id, public_key, test_data_hash, 
+                                            test_data_encrypted, shared_key, data)
 
-    def send_tunnel_data(self, hops: int, tunnel_id: int, tunnel_data: bytes) -> None:
+    def send_tunnel_data(self, tunnel_id: int, data: bytes) -> None:
         """
         Sends tunnel data to the peer.
 
-        :param hops: The number of hops that have occurred.
         :param tunnel_id: The ID of the tunnel.
-        :param tunnel_data: The data to send.
+        :param data: The data to send.
         """
 
         if self.ready:
             with self._lock:
                 P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.TUNNEL_DATA)
-                P2PProtocol.send_tunnel_data(self.conn, hops, tunnel_id, tunnel_data)
+                P2PProtocol.send_tunnel_data(self.conn, tunnel_id, data)
 
     def send_tunnel_close(self, tunnel_id: int, random_data: bytes, signature: bytes) -> None:
         """
@@ -362,4 +340,3 @@ class Peer(threading.Thread):
 
 
 from ..local import Local
-from ..tunnel import Tunnel
