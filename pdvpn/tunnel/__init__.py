@@ -26,7 +26,7 @@ from ..info import NodeList
 from ..p2p import Peer
 
 
-class Tunnel(threading.Thread):
+class Tunnel:
     """
     A tunnel is set up between two endpoints on the network.
     """
@@ -46,6 +46,30 @@ class Tunnel(threading.Thread):
         """
 
         return time.time() - self._time_created > config.TUNNEL_EXPIRY
+
+    @property
+    def last_keep_alive(self) -> float:  # TODO: Use this in the tunnel handler to manage keep alives
+        """
+        :return: The time since the last keep alive in seconds.
+        """
+
+        return time.time() - self._last_keep_alive
+
+    @property
+    def awaiting_keep_alive(self) -> bool:
+        """
+        :return: Whether this tunnel is awaiting a keep alive response.
+        """
+
+        return self._awaiting_keep_alive != -1
+
+    @property
+    def latency(self) -> float:
+        """
+        :return: The latency of this tunnel, in seconds.
+        """
+
+        return self._latency
 
     def __init__(self, local: "Local", tunnel_id: int, public_key: Union[RSAPublicKey, bytes],
                  private_key: Union[RSAPrivateKey, bytes, None] = None) -> None:
@@ -94,10 +118,13 @@ class Tunnel(threading.Thread):
 
         self.alive = False
 
+        self._latency = 0
+        self._last_keep_alive = time.time() - config.TUNNEL_KEEP_ALIVE_INTERVAL
+        self._awaiting_keep_alive = -1
+
         # Threading stuff
 
         self._lock = threading.RLock()
-
         self._data: Union[threading.Event, None] = None
 
     def __repr__(self) -> str:
@@ -111,25 +138,14 @@ class Tunnel(threading.Thread):
     def __hash__(self) -> int:
         return hash((self.tunnel_id, self._public_key))
 
-    def run(self) -> None:
-        try:
-            while self.alive:
-                try:
-                    data = self._wait_tunnel_response(0.1)  # 0.1 seconds so if we get closed, it's pretty quick
-                except TimeoutError:
-                    ...
-
-        except Exception as error:
-            self.logger.debug("Tunnel %x closed." % self.tunnel_id, exc_info=True)
-            self.close()
-
     def _wait_tunnel_response(self, timeout: float = 30) -> bytes:
         """
         Wait for a tunnel response.
         """
 
-        if self._queued_responses:
-            return self._queued_responses.popleft()
+        with self._lock:
+            if self._queued_responses:
+                return self._queued_responses.popleft()
 
         if self._data is not None:
             raise Exception("Concurrent tunnel data requests.")
@@ -139,7 +155,8 @@ class Tunnel(threading.Thread):
         self._data = None
 
         if self._queued_responses:
-            return self._queued_responses.popleft()
+            with self._lock:
+                return self._queued_responses.popleft()
         else:
             raise TimeoutError("Tunnel %x timed out." % self.tunnel_id)
 
@@ -171,21 +188,42 @@ class Tunnel(threading.Thread):
             return
 
         self.alive = True
-        self.start()
 
-        tunnel_data = BytesIO()
-        TunnelingProtocol.send_intent(tunnel_data, self, TunnelingProtocol.Intent.TUNNEL_CREATE_ACK)
-        TunnelingProtocol.send_tunnel_create_ack(tunnel_data, hops)
+        data = BytesIO()
+        TunnelingProtocol.send_intent(data, self, TunnelingProtocol.Intent.TUNNEL_CREATE_ACK)
+        TunnelingProtocol.send_tunnel_create_ack(data, hops)
         # noinspection PyProtectedMember
-        self.local.tunnel_handler._send_tunnel_data(self.tunnel_id, self._encryptor.update(tunnel_data.getvalue()), peer=None)
+        self.local.tunnel_handler._send_tunnel_data(self.tunnel_id, self._encryptor.update(data.getvalue()), peer=None)
 
         self.logger.info("Tunnel %x created in %i hop(s)." % (self.tunnel_id, hops))
 
     def on_tunnel_data(self, data: bytes) -> None:
         with self._lock:
-            self._queued_responses.append(self._decryptor.update(data))
+            data = BytesIO(self._decryptor.update(data))
+
             if self._data is not None:
+                self._queued_responses.append(data.getvalue())
                 self._data.set()
+                return
+
+        # We weren't waiting for data, so we'll process it now
+        intent = TunnelingProtocol.read_intent(data, self)
+
+        if intent == TunnelingProtocol.Intent.KEEP_ALIVE:  # It's not pretty, but it works
+            data = BytesIO()
+            TunnelingProtocol.send_intent(data, self, TunnelingProtocol.Intent.KEEP_ALIVE_ACK)
+            # FIXME: Would be nice to have a more streamlined method for sending data
+            with self._lock:
+                # noinspection PyProtectedMember
+                self.local.tunnel_handler._send_tunnel_data(self.tunnel_id, self._encryptor.update(data.getvalue()), peer=None)
+            return
+
+        elif intent == TunnelingProtocol.Intent.KEEP_ALIVE_ACK:
+            if self._awaiting_keep_alive != -1:
+                self._latency = time.time() - self._awaiting_keep_alive
+                self._awaiting_keep_alive = -1
+
+                self.logger.debug("Tunnel %x latency is %ims." % (self.tunnel_id, self._latency * 1000))
             
     # ------------------------------ Cryptography ------------------------------ #
         
@@ -243,6 +281,7 @@ class Tunnel(threading.Thread):
                 raise Exception("Tunnel %x has no endpoint." % self.tunnel_id)
 
             if not self.alive:
+                # noinspection PyProtectedMember
                 self.local.tunnel_handler._add_tunnel(self)  # Just in case this hasn't been done
 
                 self.logger.debug("Opening tunnel with ID %x..." % self.tunnel_id)
@@ -314,7 +353,6 @@ class Tunnel(threading.Thread):
                                                                                    (time.time() - start) * 1000))
 
                 self.alive = True
-                self.start()
 
         else:
             self.logger.warning("Tunnel %x open call received from non-owner." % self.tunnel_id)
@@ -338,17 +376,30 @@ class Tunnel(threading.Thread):
                     hashes.SHA256(),
                 )
                 if not dont_notify:
+                    # noinspection PyProtectedMember
                     self.local.tunnel_handler._send_tunnel_close(self.tunnel_id, random_data, signature)
 
             self.alive = False
             if self._data is not None:
                 self._data.set()
 
-            if self.is_alive() and threading.current_thread() != self:  # FIXME: Is this necessarily a good idea?
-                self.join()
-                
+        # noinspection PyProtectedMember
         self.local.tunnel_handler._remove_tunnel(self)
         self.logger.info("Tunnel %x closed." % self.tunnel_id)
+
+    def send_keep_alive(self) -> None:
+        """
+        Sends a keep alive message to the tunnel.
+        """
+
+        if self.alive and self._awaiting_keep_alive == -1:
+            self._last_keep_alive = time.time()
+            self._awaiting_keep_alive = time.time()
+            data = BytesIO()
+            TunnelingProtocol.send_intent(data, self, TunnelingProtocol.Intent.KEEP_ALIVE)
+            with self._lock:
+                # noinspection PyProtectedMember
+                self.local.tunnel_handler._send_tunnel_data(self.tunnel_id, self._encryptor.update(data.getvalue()))
 
 
 from .protocol import TunnelingProtocol

@@ -61,8 +61,8 @@ class InboundPeer(Peer):
 
         self.logger = logging.getLogger("pdvpn.p2p.inbound")
 
-        self._last_keepalive = time.time() - config.KEEPALIVE_INTERVAL
-        self._awaiting_keepalive = False
+        self._last_keep_alive = time.time() - config.KEEP_ALIVE_INTERVAL
+        self._awaiting_keep_alive = False
 
     def run(self) -> None:
         try:
@@ -78,11 +78,11 @@ class InboundPeer(Peer):
                 self._handle_intent(intent)
 
                 if intent == P2PProtocol.Intent.KEEP_ALIVE:
-                    self._awaiting_keepalive = False
+                    self._awaiting_keep_alive = False
 
                 # Keepalive
-                if time.time() - self._last_keepalive > config.KEEPALIVE_INTERVAL:
-                    if self._awaiting_keepalive:
+                if time.time() - self._last_keep_alive > config.KEEP_ALIVE_INTERVAL:
+                    if self._awaiting_keep_alive:
                         self.logger.warning("%s:%d did not respond to keepalive." % self.address)
                         self.disconnect("timeout")
                         break
@@ -91,8 +91,8 @@ class InboundPeer(Peer):
                     # self.logger.debug("Sending keepalive to %s:%d" % self.peer.peer_info.address)
                     with self._lock:
                         P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.KEEP_ALIVE)
-                    self._last_keepalive = time.time()
-                    self._awaiting_keepalive = True
+                    self._last_keep_alive = time.time()
+                    self._awaiting_keep_alive = True
 
         except Exception as error:
             if self.connected:

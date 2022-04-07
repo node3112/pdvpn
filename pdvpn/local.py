@@ -201,6 +201,8 @@ class Local:
         # self.logger.info("Running local node.")
         self.running = True
 
+        self.tunnel_handler.start()
+
         # If we're the initial node, we should expect inbound connections, we'll pair later
         if not self.peer_handler.paired and not config.INITIAL_NODE:
             self.logger.info("No peers found, starting discovery...")
@@ -244,7 +246,7 @@ class Local:
 
         try:
             while self.running:
-                self.tunnel_handler.on_update()
+                # self.tunnel_handler.on_update()
                 time.sleep(0.1)
         except KeyboardInterrupt:
             ...

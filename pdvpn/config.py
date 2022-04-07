@@ -41,7 +41,8 @@ RSA_KEY_SIZE = 2048
 DHKE_KEY_SIZE = 512
 TUNNEL_RSA_KEY_SIZE = 1024
 
-KEEPALIVE_INTERVAL = 60  # Seconds
+KEEP_ALIVE_INTERVAL = 60  # Seconds
+TUNNEL_KEEP_ALIVE_INTERVAL = 30  # Seconds
 TUNNEL_EXPIRY = 60  # Seconds
 
 # ------------------------------ Data provider stuff ------------------------------ #

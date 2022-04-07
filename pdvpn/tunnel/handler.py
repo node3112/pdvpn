@@ -13,18 +13,68 @@ from ..info import NodeList
 from ..p2p import Peer
 
 
-class TunnelHandler:
+class TunnelHandler(threading.Thread):
     """
     Responsible for managing tunnels.
     """
     
     def __init__(self, local: "Local") -> None:
+        super().__init__()
+
         self.logger = logging.getLogger("pdvpn.tunnel.handler")
         
         self.local = local
         
         self._tunnels: Dict[int, Tunnel] = {}
         self._lock = threading.RLock()
+
+    def run(self) -> None:
+        while self.local.running:
+            with self._lock:
+                for tunnel_id, tunnel in list(self._tunnels.items()):
+                    # If we aren't the tunnel owner nor are we a participant and the tunnel is expired, there's no point
+                    # storing it anymore
+                    if not tunnel.owner:
+                        if tunnel.next_hop is None and tunnel.prev_hop is None and tunnel.expired:
+                            self.logger.debug("Tunnel %x expired, removing cached." % tunnel_id)
+                            del self._tunnels[tunnel_id]  # No need to "close" it as it was never "open", to us at least
+
+                    else:
+                        if tunnel.last_keep_alive > config.TUNNEL_KEEP_ALIVE_INTERVAL:
+                            if tunnel.awaiting_keep_alive:
+                                self.logger.debug("Tunnel %x timed out." % tunnel_id)
+                                tunnel.close()
+                            else:
+                                tunnel.send_keep_alive()
+
+                    established = tunnel.next_hop is not None and tunnel.prev_hop is not None
+                    if tunnel.owner and (tunnel.next_hop is None or tunnel.prev_hop is None):
+                        established = True  # Owners only have one hop
+
+                    if established:
+                        # TODO: If this occurs, attempt to re-establish the tunnel
+                        if tunnel.next_hop is not None and not tunnel.next_hop.connected:
+                            # noinspection PyStringFormat
+                            self.logger.debug("Tunnel %x next hop (%s:%i) disconnected, closing." %
+                                              ((tunnel_id,) + tunnel.next_hop.address))
+                            tunnel.close()
+                            continue
+
+                        elif tunnel.prev_hop is not None and not tunnel.prev_hop.connected:
+                            # noinspection PyStringFormat
+                            self.logger.debug("Tunnel %x next hop (%s:%i) disconnected, closing." %
+                                              ((tunnel_id,) + tunnel.prev_hop.address))
+                            tunnel.close()
+                            continue
+
+                        if tunnel.queued_messages:
+                            self.logger.debug("Tunnel %x has queued messages, sending them." % tunnel_id)
+                            for peer, data in tunnel.queued_messages:
+                                self._send_tunnel_data(tunnel.tunnel_id, data, peer)
+
+                            tunnel.queued_messages.clear()
+
+            time.sleep(0.1)
         
     # ------------------------------ Internal ------------------------------ #
     
@@ -106,29 +156,6 @@ class TunnelHandler:
                 del self._tunnels[tunnel.tunnel_id]
         
     # ------------------------------ Events ------------------------------ #
-    
-    def on_update(self) -> None:
-        """
-        Updates handler tasks.
-        """
-        
-        with self._lock:
-            for tunnel_id, tunnel in list(self._tunnels.items()):
-                # If we aren't the tunnel owner nor are we a participant and the tunnel is expired, there's no point
-                # storing it anymore
-                if not tunnel.owner and tunnel.next_hop is None and tunnel.prev_hop is None and tunnel.expired:
-                    self.logger.debug("Tunnel %x expired, removing cached." % tunnel_id)
-                    del self._tunnels[tunnel_id]  # No need to "close" it as it was never "open", to us at least
-
-                established = tunnel.next_hop is not None and tunnel.prev_hop is not None
-                if tunnel.owner and (tunnel.next_hop is None or tunnel.prev_hop is None):
-                    established = True  # Owners only have one hop
-                if established and tunnel.queued_messages:
-                    self.logger.debug("Tunnel %x has queued messages, sending them." % tunnel_id)
-                    for peer, data in tunnel.queued_messages:
-                        self._send_tunnel_data(tunnel.tunnel_id, data, peer)
-    
-                    tunnel.queued_messages.clear()
     
     def on_tunnel_request(self, hops: int, tunnel_id: int, public_key: bytes, test_data_hash: bytes, 
                           test_data_encrypted: bytes, shared_key: bytes, data: bytes, peer: Peer) -> None:

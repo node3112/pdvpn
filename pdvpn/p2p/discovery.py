@@ -122,6 +122,8 @@ class PeerDiscoverer:
                 continue
 
             # TODO: Ask peer to pair
+            # TODO: Nodes cannot have more than 4 peers?
+            # TODO: Pairing should have a cooldown for each node, perhaps dependent on network size?
 
         else:
             while True:

@@ -99,7 +99,6 @@ class TunnelingProtocol:  # TODO: HMAC support
         """
         
         data.write(hops.to_bytes(4, "big", signed=False))
-        
 
     class Intent(Enum):
         """
@@ -111,13 +110,13 @@ class TunnelingProtocol:  # TODO: HMAC support
         TUNNEL_CREATE = 0
         TUNNEL_CREATE_ACK = 1
 
-        KEEP_ALIVE = 2  # Send these so we can be sure it hasn't been tampered with
+        KEEP_ALIVE = 2  # Send these, so we can be sure it hasn't been tampered with
+        KEEP_ALIVE_ACK = 3
 
         # Misc intents
 
-        PAIR_REQ = 3
-        PAIR_RES = 4
+        PAIR_REQ = 4
+        PAIR_RES = 5
 
-        PROXY_REQ = 5
-        PROXY_RES = 6
-
+        PROXY_REQ = 6
+        PROXY_RES = 7
