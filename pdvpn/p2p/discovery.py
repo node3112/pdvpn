@@ -34,6 +34,7 @@ class PeerDiscoverer:
 
         self.logger.info("Have %i entrypoint(s), checking for online ones..." % len(entrypoints))
         for entrypoint in entrypoints:
+            # TODO: Prevent connections to self
             try:
                 addr_info = socket.getaddrinfo(entrypoint.host, entrypoint.port, socket.AF_INET, socket.SOCK_STREAM)
                 if addr_info:

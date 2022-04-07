@@ -96,7 +96,7 @@ def gen_nlist() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(format="[%(name)s] [%(levelname)s] %(message)s", level=logging.INFO)
+    logging.basicConfig(format="[%(name)s] [%(levelname)s] %(message)s", level=logging.DEBUG)
     # logging.getLogger("pdvpn.tunnel").setLevel(logging.DEBUG)
 
     if sys.argv[1] == "local":

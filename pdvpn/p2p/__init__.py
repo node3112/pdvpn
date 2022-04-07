@@ -146,12 +146,11 @@ class Peer(threading.Thread):
         """
 
         try:
-            with self._lock:
-                self.conn.settimeout(0.01)  # Check if we have data to read.
-                intent = P2PProtocol.read_intent(self.conn, self.address)
-                self.conn.settimeout(30)
+            self.conn.settimeout(0.0075)  # Check if we have data to read
+            intent = P2PProtocol.read_intent(self.conn, self.address)
+            self.conn.settimeout(5)
 
-                return intent
+            return intent
 
         except socket.timeout:
             return None
@@ -178,9 +177,9 @@ class Peer(threading.Thread):
                     P2PProtocol.send_nlist_rev(self.conn, self.local.node_list.revision, self.local.node_list.hash())
 
         elif intent == P2PProtocol.Intent.NLIST_REV_RES:
-            with self._lock:
-                revision, hash_ = P2PProtocol.read_nlist_rev(self.conn)
+            revision, hash_ = P2PProtocol.read_nlist_rev(self.conn)
 
+            with self._lock:
                 if self._node_list_req is not None and not self._node_list_req.is_set():
                     self._node_list_revisions = (revision, hash_)
                     self._node_list_req.set()
@@ -196,9 +195,9 @@ class Peer(threading.Thread):
                     P2PProtocol.send_nlist_res(self.conn, self.local.node_list.serialize())
 
         elif intent == P2PProtocol.Intent.NLIST_RES:
-            with self._lock:
-                nlist_data = P2PProtocol.read_nlist_res(self.conn)
+            nlist_data = P2PProtocol.read_nlist_res(self.conn)
 
+            with self._lock:
                 if self._node_list_req is not None and not self._node_list_req.is_set():
                     if nlist_data:
                         self._node_list = NodeList()
@@ -296,15 +295,14 @@ class Peer(threading.Thread):
             if self._node_list_req is not None:
                 raise Exception("Node list request currently pending.")
 
+            self._node_list_req = threading.Event()
             with self._lock:
-                self._node_list_req = threading.Event()
                 P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.NLIST_REV_REQ)
 
             if not self._node_list_req.wait(timeout):
                 raise TimeoutError("Timed out waiting for node list revision response.")
 
-            with self._lock:
-                self._node_list_req = None
+            self._node_list_req = None
             if not self.connected:
                 raise ConnectionError("Peer disconnected.")
 
@@ -325,15 +323,14 @@ class Peer(threading.Thread):
             if self._node_list_req is not None:
                 raise Exception("Node list request currently pending.")
 
+            self._node_list_req = threading.Event()
             with self._lock:
-                self._node_list_req = threading.Event()
                 P2PProtocol.send_intent(self.conn, self.address, P2PProtocol.Intent.NLIST_REQ)
 
             if not self._node_list_req.wait(timeout):
                 raise TimeoutError("Timed out waiting for node list response.")
 
-            with self._lock:
-                self._node_list_req = None
+            self._node_list_req = None
             if not self.connected:
                 raise ConnectionError("Peer disconnected.")
 

@@ -220,7 +220,7 @@ class Tunnel:
 
         elif intent == TunnelingProtocol.Intent.KEEP_ALIVE_ACK:
             if self._awaiting_keep_alive != -1:
-                self._latency = time.time() - self._awaiting_keep_alive
+                self._latency = (time.time() - self._awaiting_keep_alive) / 2
                 self._awaiting_keep_alive = -1
 
                 self.logger.debug("Tunnel %x latency is %ims." % (self.tunnel_id, self._latency * 1000))

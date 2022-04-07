@@ -30,49 +30,48 @@ class TunnelHandler(threading.Thread):
 
     def run(self) -> None:
         while self.local.running:
-            with self._lock:
-                for tunnel_id, tunnel in list(self._tunnels.items()):
-                    # If we aren't the tunnel owner nor are we a participant and the tunnel is expired, there's no point
-                    # storing it anymore
-                    if not tunnel.owner:
-                        if tunnel.next_hop is None and tunnel.prev_hop is None and tunnel.expired:
-                            self.logger.debug("Tunnel %x expired, removing cached." % tunnel_id)
-                            del self._tunnels[tunnel_id]  # No need to "close" it as it was never "open", to us at least
+            for tunnel_id, tunnel in list(self._tunnels.items()):
+                # If we aren't the tunnel owner nor are we a participant and the tunnel is expired, there's no point
+                # storing it anymore
+                if not tunnel.owner:
+                    if tunnel.next_hop is None and tunnel.prev_hop is None and tunnel.expired:
+                        self.logger.debug("Tunnel %x expired, removing cached." % tunnel_id)
+                        del self._tunnels[tunnel_id]  # No need to "close" it as it was never "open", to us at least
 
-                    else:
-                        if tunnel.last_keep_alive > config.TUNNEL_KEEP_ALIVE_INTERVAL:
-                            if tunnel.awaiting_keep_alive:
-                                self.logger.debug("Tunnel %x timed out." % tunnel_id)
-                                tunnel.close()
-                            else:
-                                tunnel.send_keep_alive()
-
-                    established = tunnel.next_hop is not None and tunnel.prev_hop is not None
-                    if tunnel.owner and (tunnel.next_hop is None or tunnel.prev_hop is None):
-                        established = True  # Owners only have one hop
-
-                    if established:
-                        # TODO: If this occurs, attempt to re-establish the tunnel
-                        if tunnel.next_hop is not None and not tunnel.next_hop.connected:
-                            # noinspection PyStringFormat
-                            self.logger.debug("Tunnel %x next hop (%s:%i) disconnected, closing." %
-                                              ((tunnel_id,) + tunnel.next_hop.address))
+                else:
+                    if tunnel.last_keep_alive > config.TUNNEL_KEEP_ALIVE_INTERVAL:
+                        if tunnel.awaiting_keep_alive:
+                            self.logger.debug("Tunnel %x timed out." % tunnel_id)
                             tunnel.close()
-                            continue
+                        else:
+                            tunnel.send_keep_alive()
 
-                        elif tunnel.prev_hop is not None and not tunnel.prev_hop.connected:
-                            # noinspection PyStringFormat
-                            self.logger.debug("Tunnel %x next hop (%s:%i) disconnected, closing." %
-                                              ((tunnel_id,) + tunnel.prev_hop.address))
-                            tunnel.close()
-                            continue
+                established = tunnel.next_hop is not None and tunnel.prev_hop is not None
+                if tunnel.owner and (tunnel.next_hop is None or tunnel.prev_hop is None):
+                    established = True  # Owners only have one hop
 
-                        if tunnel.queued_messages:
-                            self.logger.debug("Tunnel %x has queued messages, sending them." % tunnel_id)
-                            for peer, data in tunnel.queued_messages:
-                                self._send_tunnel_data(tunnel.tunnel_id, data, peer)
+                if established:
+                    # TODO: If this occurs, attempt to re-establish the tunnel
+                    if tunnel.next_hop is not None and not tunnel.next_hop.connected:
+                        # noinspection PyStringFormat
+                        self.logger.debug("Tunnel %x next hop (%s:%i) disconnected, closing." %
+                                          ((tunnel_id,) + tunnel.next_hop.address))
+                        tunnel.close()
+                        continue
 
-                            tunnel.queued_messages.clear()
+                    elif tunnel.prev_hop is not None and not tunnel.prev_hop.connected:
+                        # noinspection PyStringFormat
+                        self.logger.debug("Tunnel %x next hop (%s:%i) disconnected, closing." %
+                                          ((tunnel_id,) + tunnel.prev_hop.address))
+                        tunnel.close()
+                        continue
+
+                    if tunnel.queued_messages:
+                        self.logger.debug("Tunnel %x has queued messages, sending them." % tunnel_id)
+                        for peer, data in tunnel.queued_messages:
+                            self._send_tunnel_data(tunnel.tunnel_id, data, peer)
+
+                        tunnel.queued_messages.clear()
 
             time.sleep(0.1)
         
@@ -97,9 +96,8 @@ class TunnelHandler(threading.Thread):
         """
         Sends tunnel data through a tunnel.
         """
-        
-        with self._lock:
-            tunnel = self._tunnels[tunnel_id]
+
+        tunnel = self._tunnels[tunnel_id]
         
         # If either one directional peer is None, this means we are the owner, it is not an error
         if peer == tunnel.prev_hop and tunnel.next_hop is not None:  # Forwards direction
@@ -121,9 +119,8 @@ class TunnelHandler(threading.Thread):
         """
         Sends the tunnel close through a tunnel.
         """
-        
-        with self._lock:
-            tunnel = self._tunnels[tunnel_id]
+
+        tunnel = self._tunnels[tunnel_id]
             
         # TODO: Probably don't need to send it in both directions as nodes in the middle can't sign it?
         if peer == tunnel.prev_hop and tunnel.next_hop is not None:  # Forwards direction
@@ -141,7 +138,7 @@ class TunnelHandler(threading.Thread):
         """
         Adds a tunnel to the known tunnels.
         """
-        
+
         with self._lock:
             if not tunnel.tunnel_id in self._tunnels:
                 self._tunnels[tunnel.tunnel_id] = tunnel
@@ -150,7 +147,7 @@ class TunnelHandler(threading.Thread):
         """
         Removes a tunnel from the known tunnels.
         """
-        
+
         with self._lock:
             if tunnel.tunnel_id in self._tunnels:
                 del self._tunnels[tunnel.tunnel_id]
@@ -212,10 +209,9 @@ class TunnelHandler(threading.Thread):
         :param peer: The peer that sent the tunnel data.
         """
 
-        with self._lock:
-            if not tunnel_id in self._tunnels:  # We don't know about this tunnel, so we can't do anything with it
-                return
-            tunnel = self._tunnels[tunnel_id]
+        if not tunnel_id in self._tunnels:  # We don't know about this tunnel, so we can't do anything with it
+            return
+        tunnel = self._tunnels[tunnel_id]
 
         self.logger.debug("Tunnel data from %s:%i (length %i)." % (peer.address + (len(data),)))
 
@@ -247,11 +243,10 @@ class TunnelHandler(threading.Thread):
         :param skip_verify: Don't verify the signature.
         """
 
-        with self._lock:
-            # We don't know about this tunnel, so we can't do anything with it
-            if not tunnel_id in self._tunnels:
-                return
-            tunnel = self._tunnels[tunnel_id]
+        # We don't know about this tunnel, so we can't do anything with it
+        if not tunnel_id in self._tunnels:
+            return
+        tunnel = self._tunnels[tunnel_id]
 
         self.logger.debug("Received tunnel close from %s:%i." % peer.address)
 

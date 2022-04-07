@@ -18,8 +18,7 @@ class OutboundPeer(Peer):
 
     def run(self) -> None:
         try:
-            with self._lock:
-                self._handshake(outbound=True)
+            self._handshake(outbound=True)
         except Exception as error:
             self.logger.debug("Failed to complete handshake with %s:%d." % (self.hostname, self.port), exc_info=True)
             self.disconnect("failed handshake")

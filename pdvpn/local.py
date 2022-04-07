@@ -212,7 +212,7 @@ class Local:
             except KeyboardInterrupt:
                 ...
                 
-            if not self.peer_handler.paired:
+            if not self.peer_handler.paired:  # We won't shutdown in the actual case, but this is a POC
                 self._shutdown()
                 return
 
@@ -259,4 +259,3 @@ from .data import DataProvider, FileDataProvider, DataGenerator
 from .p2p.handler import PeerHandler
 from .p2p.inbound import InboundPeerListener
 from .tunnel.handler import TunnelHandler
-
