@@ -47,7 +47,7 @@ class InboundPeerListener(threading.Thread):
                 peer.start()
 
             except Exception as error:
-                self.logger.error("Failed to accept connection from %s:%d." % address, exc_info=True)
+                self.logger.debug("Failed to accept connection from %s:%d." % address, exc_info=True)
 
         self.server.close()
 
@@ -68,11 +68,9 @@ class InboundPeer(Peer):
         try:
             self._handshake(outbound=False)
         except Exception as error:
-            self.logger.error("Failed to complete handshake with %s:%d." % (self.hostname, self.port), exc_info=True)
+            self.logger.debug("Failed to complete handshake with %s:%d." % (self.hostname, self.port), exc_info=True)
             self.disconnect("failed handshake")
             return
-
-        self.conn.settimeout(0.1)
 
         try:
             while self.connected:
@@ -98,7 +96,7 @@ class InboundPeer(Peer):
 
         except Exception as error:
             if self.connected:
-                self.logger.error("Failed to receive intent from %s:%d." % self.address, exc_info=True)
+                self.logger.debug("Failed to receive intent from %s:%d." % self.address, exc_info=True)
                 self.disconnect(str(error))
 
 

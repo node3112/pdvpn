@@ -21,7 +21,7 @@ class OutboundPeer(Peer):
             with self._lock:
                 self._handshake(outbound=True)
         except Exception as error:
-            self.logger.error("Failed to complete handshake with %s:%d." % (self.hostname, self.port), exc_info=True)
+            self.logger.debug("Failed to complete handshake with %s:%d." % (self.hostname, self.port), exc_info=True)
             self.disconnect("failed handshake")
             return
 
@@ -36,7 +36,7 @@ class OutboundPeer(Peer):
 
         except Exception as error:
             if self.connected:  # Might have been disconnected in another thread
-                self.logger.error("Failed to receive intent from %s:%d." % self.address, exc_info=True)
+                self.logger.debug("Failed to receive intent from %s:%d." % self.address, exc_info=True)
                 self.disconnect(str(error))
 
 

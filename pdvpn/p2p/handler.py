@@ -114,7 +114,60 @@ class PeerHandler:
         
         # TODO: Generate a public key to use for tunneling
         # TODO: Request tunnel to peers, verify they are valid, and connect to them
-                    
+
+    def update_node_list(self, timeout: float = 30) -> None:
+        """
+        Requests the latest node list from all known peers.
+
+        :param timeout: The timeout to use for each individual request.
+        """
+
+        self.logger.info("Attempting to update current node list...")
+        self.logger.debug("Requesting revisions from %i peer(s)." % (len(self.paired_peers) + len(self.unpaired_peers)))
+
+        revisions = []
+        for peer in self.all_peers:
+            try:
+                revision, hash_ = peer.request_node_list_revision()
+                if revision:
+                    revisions.append((revision, hash_, peer))
+            except Exception as error:
+                self.logger.warning("Failed to request node list revision from peer %s:%i." % peer.address,
+                                    exc_info=True)  # TODO: Maybe I should go easier on the exc_info=True's
+
+        if not revisions:
+            self.logger.warning("No node list revisions found, wtf?")
+            return
+
+        self.logger.debug("Found %i revision(s)." % len(revisions))
+
+        current_revision = self.local.node_list.revision if self.local.node_list is not None else -1
+        for revision, hash_, peer in revisions:
+            if revision > current_revision:
+                current_revision = revision
+
+        if self.local.node_list is not None and self.local.node_list.revision == current_revision and \
+                self.local.node_list.verify_signature(self.local._master_key):
+            self.logger.info("Current node list (revision %i) is up to date." % current_revision)
+            return
+
+        node_lists = []
+        for revision, hash_, peer in revisions:
+            if revision == current_revision:
+                try:
+                    self.logger.debug("Requesting ndoe list from %s:%i." % peer.address)
+                    node_list = peer.request_node_list(timeout=timeout)
+                    if node_list is not None and node_list.verify_signature(self.local._master_key):
+                        node_lists.append(node_list)
+                    self.logger.info("Latest node list revision: %i (from %s:%i)." % ((current_revision,) + peer.address))
+                    break
+
+                except Exception as error:
+                    self.logger.debug("Failed to request node list from peer %s:%i." % peer.address, exc_info=True)
+
+        self.local.node_list = node_lists[0]  # The first one should be adequate
+        self.local.data_provider.set_nodes(self.local.node_list)
+
     def disconnect_all(self, reason: str = "unknown") -> None:
         """
         Disconnects all peers currently connected, paired or unpaired.

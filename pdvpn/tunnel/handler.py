@@ -9,6 +9,7 @@ from cryptography.hazmat.primitives import hashes
 
 from . import Tunnel
 from .. import config, encryption
+from ..info import NodeList
 from ..p2p import Peer
 
 
@@ -240,11 +241,12 @@ class TunnelHandler:
         
     # ------------------------------ Interfacing ------------------------------ #
     
-    def create_tunnel(self, inid: int) -> "Tunnel":
+    def create_tunnel(self, inid: int, ignore_untrusted: bool = False) -> "Tunnel":
         """
         Creates a new tunneled connection to the node given by its INID. This does not open the tunnel.
 
         :param inid: The node's INID.
+        :param ignore_untrusted: Don't check if the node is trusted.
         :return: The tunnel that was created.
         :exception: Thrown if creating the tunnel fails.
         """
@@ -256,6 +258,12 @@ class TunnelHandler:
         public_key, private_key = encryption.generate_rsa_keypair(key_size=config.TUNNEL_RSA_KEY_SIZE)
         tunnel = Tunnel(self.local, tunnel_id, public_key, private_key)
         tunnel.endpoint = self.local.node_list[inid]
+
+        if isinstance(tunnel.endpoint, NodeList.UnverifiedInfo):
+            if tunnel.endpoint.is_trusted(self.local.node_list) or ignore_untrusted:
+                tunnel.endpoint = tunnel.endpoint.node_info
+            else:
+                raise PermissionError("Node with INID %x is untrusted." % inid)
         
         self._add_tunnel(tunnel)
         return tunnel
@@ -266,7 +274,7 @@ class TunnelHandler:
         """
         
         with self._lock:
-            self.logger.debug("Closing %i tunnels..." % len(self._tunnels))
+            self.logger.debug("Closing %i tunnel(s)..." % len(self._tunnels))
             for tunnel_id, tunnel in list(self._tunnels.items()):
                 tunnel.close()
 

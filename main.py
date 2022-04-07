@@ -4,14 +4,12 @@ import logging
 import os
 import sys
 
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import serialization
 
 from pdvpn import config
-from pdvpn.local import Local
 from pdvpn.data import FileDataProvider
 from pdvpn.info import NodeList
+from pdvpn.local import Local
 
 
 def run_local() -> None:
@@ -72,6 +70,7 @@ def gen_nlist() -> None:
         logging.debug("No nodes found in data file, generating new...")
         node_list = NodeList()
     else:
+        node_list.revision += 1  # Add one to the revision
         logging.debug("Read %i nodes from data file." % len(node_list))
 
     logging.debug("Adding node to node list...")
@@ -80,20 +79,12 @@ def gen_nlist() -> None:
     logging.info("Signing node list...")
     node_list.sign(private_key)
 
+    logging.debug("Node list revision: %i." % node_list.revision)
+    logging.debug("Node list hash: %r." % node_list.hash().hex())
+
     logging.info("Verifying...")
     public_key = serialization.load_pem_public_key(config.MASTER_KEY)
-    try:
-        # noinspection PyProtectedMember
-        public_key.verify(
-            node_list.signature,
-            node_list.serialize(skip_signature=True),
-            padding.PSS(
-                mgf=padding.MGF1(hashes.SHA1()),
-                salt_length=padding.PSS.MAX_LENGTH,
-            ),
-            hashes.SHA256(),
-        )
-    except InvalidSignature:
+    if not node_list.verify_signature(public_key):
         logging.error("Signature verification failed!")
         sys.exit(1)
 
@@ -105,7 +96,7 @@ def gen_nlist() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(format="[%(name)s] [%(levelname)s] %(message)s", level=logging.DEBUG)
+    logging.basicConfig(format="[%(name)s] [%(levelname)s] %(message)s", level=logging.INFO)
     # logging.getLogger("pdvpn.tunnel").setLevel(logging.DEBUG)
 
     if sys.argv[1] == "local":

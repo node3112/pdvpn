@@ -35,6 +35,8 @@ e+IVrwO0B0R7DCH/vbeb4fIPxYHu7wndP55HUEFnCJ3O8jFwqY6eWdQyi+wrY8MJ
 CLIENT = "py3"  # Client name/type
 VERSION = "0.1.3"  # Client version
 
+NODE_LIST_TRUST_THRESHOLD = 0.9  # % of valid nodes required to trust an unverified node
+
 RSA_KEY_SIZE = 2048
 DHKE_KEY_SIZE = 512
 TUNNEL_RSA_KEY_SIZE = 1024

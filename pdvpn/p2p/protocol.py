@@ -7,7 +7,7 @@ import random
 import socket
 import struct
 from enum import Enum
-from typing import Tuple, Union
+from typing import Tuple, Union, Dict
 
 from pdvpn.encryption import EncryptedSocketWrapper
 
@@ -64,7 +64,7 @@ class P2PProtocol:
     def read_intent(conn: Union[socket.socket, EncryptedSocketWrapper],
                     address: Tuple[str, int]) -> "P2PProtocol.Intent":
         """
-        Reads the packet intent from the socket.
+        Reads the packet intent (the information the packet will contain).
 
         :param conn: The connection.
         :param address: The remote address, for logging purposes.
@@ -80,7 +80,7 @@ class P2PProtocol:
     def send_intent(conn: Union[socket.socket, EncryptedSocketWrapper], address: Tuple[str, int],
                     intent: "P2PProtocol.Intent") -> None:
         """
-        Sends the packet intent to the socket.
+        Sends the packet intent.
 
         :param conn: The connection.
         :param address: The remote address, for logging purposes.
@@ -95,7 +95,7 @@ class P2PProtocol:
     @classmethod
     def read_hello(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[bytes, int, int]:
         """
-        Reads the packet hello from the socket.
+        Reads the initial hello packet. This acts to start the DHKE.
 
         :param conn: The connection.
         :return: a_peer_public_key, param_g, param_p.
@@ -112,7 +112,7 @@ class P2PProtocol:
     def send_hello(cls, conn: Union[socket.socket, EncryptedSocketWrapper], a_peer_public_key: bytes,
                    param_g: int, param_p: int) -> None:
         """
-        Sends the packet hello to the socket.
+        Sends the initial hello packet.
 
         :param conn: The connection.
         :param a_peer_public_key: The peer's public key.
@@ -130,7 +130,7 @@ class P2PProtocol:
     @classmethod
     def read_hello_ack(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[bytes, bytes]:
         """
-        Reads the packet hello_ack from the socket.
+        Reads the hello_ack packet, this completes the DHKE.
 
         :param conn: The connection.
         :return: b_peer_public_key and the init vector.
@@ -146,7 +146,7 @@ class P2PProtocol:
     def send_hello_ack(cls, conn: Union[socket.socket, EncryptedSocketWrapper],
                        b_peer_public_key: bytes, init_vector: bytes) -> None:
         """
-        Sends the packet hello_ack to the socket.
+        Sends the hello_ack packet.
 
         :param conn: The connection.
         :param b_peer_public_key: The peer's public key.
@@ -160,7 +160,7 @@ class P2PProtocol:
     @classmethod
     def read_fin(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> None:
         """
-        Reads the packet fin from the socket.
+        Reads the fin packet, this verifies that a secure connection has been created.
 
         :param conn: The connection.
         """
@@ -171,7 +171,7 @@ class P2PProtocol:
     @staticmethod
     def send_fin(conn: Union[socket.socket, EncryptedSocketWrapper]) -> None:
         """
-        Sends the packet fin to the socket.
+        Sends the fin packet.
 
         :param conn: The connection.
         """
@@ -185,7 +185,7 @@ class P2PProtocol:
     @staticmethod
     def read_disconnect(conn: Union[socket.socket, EncryptedSocketWrapper]) -> str:
         """
-        Reads the packet disconnect from the socket.
+        Reads the disconnect packet, this is used by either party to indicate a disconnect.
 
         :param conn: The connection.
         :return: The disconnect reason.
@@ -199,7 +199,7 @@ class P2PProtocol:
     @staticmethod
     def send_disconnect(conn: Union[socket.socket, EncryptedSocketWrapper], reason: str) -> None:
         """
-        Sends the packet disconnect to the socket.
+        Sends the disconnect packet.
 
         :param conn: The connection.
         :param reason: The disconnect reason, <= 255 bytes encoded utf-8.
@@ -211,17 +211,49 @@ class P2PProtocol:
         conn.send(bytes([len(reason_data)]))
         conn.send(reason_data)
 
-    # ------------------------------ Data sync ------------------------------ #
+    # ------------------------------ Node list sync ------------------------------ #
+
+    @classmethod
+    def read_nlist_rev(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[int, bytes]:
+        """
+        Reads the node list revision.
+
+        :param conn: The connection.
+        :return: The nodel list revisions.
+        """
+
+        revision = int.from_bytes(conn.recv(4), "big", signed=False)
+        if revision:  # 0 indicates no revision (i.e. no node list)
+            hash_ = cls._read_all(conn, 32)
+        else:
+            hash_ = b""
+        return revision, hash_
+
+    @classmethod
+    def send_nlist_rev(cls, conn: Union[socket.socket, EncryptedSocketWrapper], revision: int,
+                       hash_: bytes = b"") -> None:
+        """
+        Sends the node list revision.
+
+        :param conn: The connection.
+        :param revision: The node list revision.
+        :param hash_: The node list hash.
+        """
+
+        conn.send(revision.to_bytes(4, "big", signed=False))
+        if revision:
+            conn.send(hash_)
 
     @classmethod
     def read_nlist_res(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> bytes:
         """
-        Reads the packet nlist_res from the socket.
+        Reads the node list response packet.
 
         :param conn: The connection.
         :return: The node list bytes.
         """
 
+        # TODO: Would be nice to have some indication of progress
         nlist_size_size = conn.recv(1)[0]
         nlist_size = cls._decode_int(conn.recv(nlist_size_size))  # Could be pretty large
         node_list_data = cls._read_all(conn, nlist_size)
@@ -231,7 +263,7 @@ class P2PProtocol:
     @classmethod
     def send_nlist_res(cls, conn: Union[socket.socket, EncryptedSocketWrapper], node_list_data: bytes) -> None:
         """
-        Sends the packet nlist_res to the socket.
+        Sends the node list response packet.
 
         :param conn: The connection.
         :param node_list_data: The node list bytes.
@@ -257,7 +289,7 @@ class P2PProtocol:
     def read_tunnel_req(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[int, int, int, bytes, bytes,
                                                                                           bytes, bytes, bytes]:
         """
-        Reads the packet tunnel_req from the socket.
+        Broadcasts that a tunnel request has been made.
 
         :param conn: The connection.
         :return: The number of hops, tunnel ID, public key, hashed test data, test data encrypted with the node's
@@ -280,7 +312,7 @@ class P2PProtocol:
                         public_key: bytes, test_data_hash: bytes, test_data_encrypted: bytes, shared_key: bytes,
                         data: bytes) -> None:
         """
-        Sends the packet tunnel_req to the socket.
+        Sends the tunnel request packet.
 
         :param conn: The connection.
         :param hops: The number of hops that have been made.
@@ -306,7 +338,7 @@ class P2PProtocol:
     @classmethod
     def read_tunnel_data(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[int, bytes]:
         """
-        Reads the packet tunnel_data from the socket.
+        Reads the tunnel data packet, this is data being sent through a tunnel.
 
         :param conn: The connection.
         :return: The tunnel ID and tunnel data (encrypted for the endpoint).
@@ -320,7 +352,7 @@ class P2PProtocol:
     @staticmethod
     def send_tunnel_data(conn: Union[socket.socket, EncryptedSocketWrapper], tunnel_id: int, data: bytes) -> None:
         """
-        Sends the packet tunnel_data to the socket.
+        Sends the tunnel data packet.
 
         :param conn: The connection.
         :param tunnel_id: The tunnel ID.
@@ -333,7 +365,7 @@ class P2PProtocol:
     @classmethod
     def read_tunnel_close(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> Tuple[int, bytes, bytes]:
         """
-        Reads the packet tunnel_close from the socket.
+        Reads the close tunnel packet.
 
         :param conn: The connection.
         :return: The tunnel ID, random data and the signature of the random data.
@@ -349,7 +381,7 @@ class P2PProtocol:
     def send_tunnel_close(conn: Union[socket.socket, EncryptedSocketWrapper], tunnel_id: int, random_data: bytes,
                           signature: bytes) -> None:
         """
-        Sends the packet tunnel_close to the socket.
+        Sends the close tunnel packet.
 
         :param conn: The connection.
         :param tunnel_id: The tunnel ID.
@@ -376,18 +408,20 @@ class P2PProtocol:
         DISCONNECT = 4
         KEEP_ALIVE = 5
 
-        # Syncing data
-        NLIST_REQ = 6
-        NLIST_RES = 7
+        # Syncing node list
+        NLIST_REV_REQ = 6
+        NLIST_REV_RES = 7
+        NLIST_REQ = 8
+        NLIST_RES = 9
 
         # Pairing with the peer
-        PAIR_REQ = 8
-        PAIR_RES = 9
+        PAIR_REQ = 10
+        PAIR_RES = 11
 
         # Broadcast data
-        DATA = 10
+        DATA = 12
 
         # Tunneling data
-        TUNNEL_REQ = 11
-        TUNNEL_DATA = 12
-        TUNNEL_CLOSE = 13
+        TUNNEL_REQ = 13
+        TUNNEL_DATA = 14
+        TUNNEL_CLOSE = 15

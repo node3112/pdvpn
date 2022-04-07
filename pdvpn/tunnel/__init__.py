@@ -251,7 +251,7 @@ class Tunnel(threading.Thread):
                 # Create a random offset for the number of hops. This is done so that the endpoint can know how many
                 # hops were actually made, whereas nodes just passing the request along do not. This is done so that the
                 # originator of the request cannot be identified accurately through the number of hops.
-                hops_offset = random.randint(0, len(self.local.node_list))
+                hops_offset = random.randint(0, len(self.local.node_list.nodes))
                 public_key_bytes = self._public_key.public_bytes(
                     encoding=serialization.Encoding.DER,
                     format=serialization.PublicFormat.SubjectPublicKeyInfo,
@@ -282,7 +282,8 @@ class Tunnel(threading.Thread):
                 cipher = encryption.get_cipher_from_secrets(cipher_key, init_vector)
                 self._encryptor = cipher.encryptor()
                 self._decryptor = cipher.decryptor()
-                
+
+                start = time.time()
                 # noinspection PyProtectedMember
                 self.local.tunnel_handler._broadcast_tunnel_request(
                     hops_offset, self.tunnel_id,
@@ -309,7 +310,8 @@ class Tunnel(threading.Thread):
                     self.close()
                     return
 
-                self.logger.info("Tunnel %x created in %i hop(s)." % (self.tunnel_id, hops))
+                self.logger.info("Tunnel %x created in %i hop(s) with %ims rt." % (self.tunnel_id, hops,
+                                                                                   (time.time() - start) * 1000))
 
                 self.alive = True
                 self.start()

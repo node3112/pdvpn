@@ -41,7 +41,13 @@ class Local:
         self._master_key = serialization.load_pem_public_key(config.MASTER_KEY)
 
         self.node_list: Union[NodeList, None] = self.data_provider.get_nodes()
-        self.logger.debug("%i known node(s)." % (len(self.node_list) if self.node_list is not None else 0))
+        if self.node_list is None:
+            self.logger.debug("No valid node list.")
+        else:
+            self.logger.debug("Node list revision: %i." % self.node_list.revision)
+            self.logger.debug("Node list hash: %r." % self.node_list.hash().hex())
+            self.logger.debug("%i known node(s), %i unverified node(s)." % (len(self.node_list.nodes),
+                                                                            len(self.node_list.unverified)))
         
         self.peer_handler = PeerHandler(self, self.data_provider.get_peers())
         self.tunnel_handler = TunnelHandler(self)
@@ -59,14 +65,12 @@ class Local:
 
         return True  # TODO: Figure this out, OS dependent really
 
-    def _check_inid(self, node_list: Union["NodeList", None] = None) -> None:
+    def _check_inid(self) -> None:
         """
         Checks that our INID is valid, and is not already taken. If it is, change it.
         """
 
-        if node_list is None:
-            node_list = self.node_list
-        if node_list is None:  # We have no data, so we can't tell
+        if self.node_list is None:  # We have no data, so we can't tell
             return
 
         public_key = self._public_key.public_bytes(
@@ -75,7 +79,8 @@ class Local:
         )
 
         # Perhaps we are already in the list, we need to verify this by checking the public key as well
-        while self.inid is None or (self.inid in node_list and node_list[self.inid].public_key != public_key):
+        while self.inid is None or (self.inid in self.node_list and
+                                    self.node_list.get_node(self.inid).public_key != public_key):
             # noinspection PyProtectedMember
             self.inid = DataGenerator._generated_inid()  # TODO: Maybe we can move this somewhere else?
 
@@ -95,7 +100,7 @@ class Local:
         if inid in self._public_key_cache:
             public_key = self._public_key_cache[inid]
         else:
-            public_key = serialization.load_der_public_key(self.node_list[inid].public_key)
+            public_key = serialization.load_der_public_key(self.node_list.get_node(inid).public_key)
             self._public_key_cache[inid] = public_key
         
         ciphertext = public_key.encrypt(
@@ -137,7 +142,6 @@ class Local:
         except InvalidSignature:
             return False
 
-        
     def decrypt(self, data: bytes) -> bytes:
         """
         Decrypts data with the local node's private key.
@@ -212,7 +216,8 @@ class Local:
 
         do_inbound = config.INBOUND_ENABLED and self._can_do_inbound()
         # TODO: Do this when we're actually connected to the network
-        self._check_inid(self.node_list)  # Make sure our INID is valid
+        self.peer_handler.update_node_list()  # Update our node list, if it's not up to date
+        self._check_inid()  # Make sure our INID is valid
 
         if config.INITIAL_NODE:
             self.logger.info("We are acting as the initial node, if this is an error, please check your configuration.")
@@ -223,9 +228,9 @@ class Local:
                 return
 
             # We should have a signed node list with only us on it, if we don't, then something is wrong
-            if (self.node_list is None or not self.node_list.verify_signature(self) or
+            if (self.node_list is None or not self.node_list.verify_signature(self._master_key) or
                     not self.inid in self.node_list or
-                    self.node_list[self.inid].public_key != self._public_key.public_bytes(  # We need all the valid info
+                    self.node_list.get_node(self.inid).public_key != self._public_key.public_bytes(  # We need all the valid info
                         encoding=serialization.Encoding.DER,
                         format=serialization.PublicFormat.SubjectPublicKeyInfo
                     )):
