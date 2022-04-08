@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple, Union
 
 from cryptography.hazmat.primitives import serialization
-from typing.io import IO
+from typing import IO
 
 from . import config, encryption
 from .info import NodeList, PeerInfo
