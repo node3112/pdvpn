@@ -138,9 +138,17 @@ class Tunnel:
     def __hash__(self) -> int:
         return hash((self.tunnel_id, self._public_key))
 
-    def _wait_tunnel_response(self, timeout: float = 30) -> bytes:
+    def _send(self, data: bytes) -> None:
         """
-        Wait for a tunnel response.
+        Sends data down the tunnel.
+        """
+
+        # noinspection PyProtectedMember
+        self.local.tunnel_handler._send_tunnel_data(self.tunnel_id, self._encryptor.update(data), peer=None)
+
+    def _recv(self, timeout: float = 30) -> bytes:
+        """
+        Waits to receive data through the tunnel.
         """
 
         with self._lock:
@@ -192,8 +200,7 @@ class Tunnel:
         data = BytesIO()
         TunnelingProtocol.send_intent(data, self, TunnelingProtocol.Intent.TUNNEL_CREATE_ACK)
         TunnelingProtocol.send_tunnel_create_ack(data, hops)
-        # noinspection PyProtectedMember
-        self.local.tunnel_handler._send_tunnel_data(self.tunnel_id, self._encryptor.update(data.getvalue()), peer=None)
+        self._send(data.getvalue())
 
         self.logger.info("Tunnel %x created in %i hop(s)." % (self.tunnel_id, hops))
 
@@ -212,10 +219,8 @@ class Tunnel:
         if intent == TunnelingProtocol.Intent.KEEP_ALIVE:  # It's not pretty, but it works
             data = BytesIO()
             TunnelingProtocol.send_intent(data, self, TunnelingProtocol.Intent.KEEP_ALIVE_ACK)
-            # FIXME: Would be nice to have a more streamlined method for sending data
             with self._lock:
-                # noinspection PyProtectedMember
-                self.local.tunnel_handler._send_tunnel_data(self.tunnel_id, self._encryptor.update(data.getvalue()), peer=None)
+                self._send(data.getvalue())
             return
 
         elif intent == TunnelingProtocol.Intent.KEEP_ALIVE_ACK:
@@ -266,6 +271,21 @@ class Tunnel:
             hashes.SHA256(),
         )
         return signature
+
+    # ------------------------------ Interfacing ------------------------------ #
+
+    def send_keep_alive(self) -> None:
+        """
+        Sends a keep alive message to the tunnel.
+        """
+
+        if self.alive and self._awaiting_keep_alive == -1:
+            self._last_keep_alive = time.time()
+            self._awaiting_keep_alive = time.time()
+            data = BytesIO()
+            TunnelingProtocol.send_intent(data, self, TunnelingProtocol.Intent.KEEP_ALIVE)
+            with self._lock:
+                self._send(data.getvalue())
 
     # ------------------------------ Higher level management ------------------------------ #
 
@@ -335,7 +355,7 @@ class Tunnel:
                 )
 
                 try:
-                    data = BytesIO(self._wait_tunnel_response(timeout=timeout))
+                    data = BytesIO(self._recv(timeout=timeout))
                     
                     intent = TunnelingProtocol.read_intent(data, self)
                     if intent != TunnelingProtocol.Intent.TUNNEL_CREATE_ACK:
@@ -386,20 +406,6 @@ class Tunnel:
         # noinspection PyProtectedMember
         self.local.tunnel_handler._remove_tunnel(self)
         self.logger.info("Tunnel %x closed." % self.tunnel_id)
-
-    def send_keep_alive(self) -> None:
-        """
-        Sends a keep alive message to the tunnel.
-        """
-
-        if self.alive and self._awaiting_keep_alive == -1:
-            self._last_keep_alive = time.time()
-            self._awaiting_keep_alive = time.time()
-            data = BytesIO()
-            TunnelingProtocol.send_intent(data, self, TunnelingProtocol.Intent.KEEP_ALIVE)
-            with self._lock:
-                # noinspection PyProtectedMember
-                self.local.tunnel_handler._send_tunnel_data(self.tunnel_id, self._encryptor.update(data.getvalue()))
 
 
 from .protocol import TunnelingProtocol

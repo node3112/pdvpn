@@ -111,8 +111,7 @@ class PeerHandler:
         """
         
         potential_peers = self.discoverer.discover()
-        
-        # TODO: Generate a public key to use for tunneling
+
         # TODO: Request tunnel to peers, verify they are valid, and connect to them
 
     def update_node_list(self, timeout: float = 30) -> None:
@@ -187,4 +186,3 @@ class PeerHandler:
         
 
 from ..local import Local
-
