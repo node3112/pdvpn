@@ -282,6 +282,29 @@ class P2PProtocol:
     # ------------------------------ Broadcast ------------------------------ #
 
     # TODO: Broadcast
+    @classmethod
+    def read_data(cls, conn: Union[socket.socket, EncryptedSocketWrapper]) -> bytes:
+        """
+        Reads the broadcast data packet.
+
+        :param conn: The connection.
+        :return: The broadcast data.
+        """
+
+        data_size = int.from_bytes(conn.recv(4), "big", signed=False)
+        return cls._read_all(conn, data_size)
+
+    @staticmethod
+    def send_data(conn: Union[socket.socket, EncryptedSocketWrapper], data: bytes) -> None:
+        """
+        Sends the broadcast data packet.
+
+        :param conn: The connection.
+        :param data: The broadcast data.
+        """
+
+        conn.send(len(data).to_bytes(4, "big", signed=False))
+        conn.sendall(data)
 
     # ------------------------------ Tunneling ------------------------------ #
 

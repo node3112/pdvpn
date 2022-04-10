@@ -218,7 +218,7 @@ class Peer(threading.Thread):
         # Broadcast
 
         elif intent == P2PProtocol.Intent.DATA:
-            ...  # TODO: Something like self.local.broadcast_handler.on_data(...)
+            self.local.broadcast_handler.on_broadcast_data(P2PProtocol.read_data(self.conn), self)
 
         # Tunneling
 

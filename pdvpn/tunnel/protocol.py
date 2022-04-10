@@ -25,7 +25,7 @@ class TunnelingProtocol:  # TODO: HMAC support
 
         :param data: The tunneling data.
         :param tunnel: The tunnel that this data came from, for logging purposes.
-        :return: The intent and the remaining data.
+        :return: The intent.
         """
 
         intent = TunnelingProtocol.Intent(data.read(1)[0])
