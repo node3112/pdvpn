@@ -48,8 +48,9 @@ class Local:
             self.logger.debug("Node list hash: %r." % self.node_list.hash().hex())
             self.logger.debug("%i known node(s), %i unverified node(s)." % (len(self.node_list.nodes),
                                                                             len(self.node_list.unverified)))
-        
+
         self.peer_handler = PeerHandler(self, self.data_provider.get_peers())
+        self.broadcast_handler = BroadcastHandler(self)
         self.tunnel_handler = TunnelHandler(self)
 
         self._inbound_listener: Union[InboundPeerListener, None] = None
@@ -254,8 +255,9 @@ class Local:
         self._shutdown()
 
 
-from .info import NodeList
+from .broadcast.handler import BroadcastHandler
 from .data import DataProvider, FileDataProvider, DataGenerator
+from .info import NodeList
 from .p2p.handler import PeerHandler
 from .p2p.inbound import InboundPeerListener
 from .tunnel.handler import TunnelHandler
