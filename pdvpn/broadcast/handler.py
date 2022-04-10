@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
 
-import logging
-import time
-from io import BytesIO
-from typing import Union
 
-from .protocol import BroadcastProtocol
-from ..info import NodeList
-
-
-class BroadcastHandler:
+class BroadcastHandler(threading.Thread):
     """
     Handles broadcast messages.
     """
@@ -48,7 +40,8 @@ class BroadcastHandler:
         # Updating stuff from the "master node"
 
         if intent == BroadcastProtocol.Intent.UPDATE_CONFIG:
-            ...  # TODO: Ability to update config?
+            self.local.data_provider.set_config(...)  #TODO: deserialize new config
+            ...  # TODO: Update in RAM as well
 
         elif intent == BroadcastProtocol.Intent.UPDATE_CLIENT:
             ...  # TODO: Idk, a lot of client determining stuff
@@ -84,13 +77,16 @@ class BroadcastHandler:
         # More "master node" stuff
 
         elif intent == BroadcastProtocol.Intent.INFORMATION_REQUEST:
-            ...
+            buffer = BytesIO()
+            self.local.write_information(self, buffer)
+            ... # TODO: Encrypt to master
+            ... # TODO: broadcast that data.
 
         elif intent == BroadcastProtocol.Intent.FORGET_PEER:
             ...  # TODO: self.local.peer_handler.unpair(...)
 
         elif intent == BroadcastProtocol.Intent.FACTORY_RESET:
-            ...  # TODO: self.local.data_provider.reset_all()
+            self.local.data_provider.reset_all()
 
     # ------------------------------ Events ------------------------------ #
 
@@ -106,15 +102,48 @@ class BroadcastHandler:
         intent, broadcast_id = BroadcastProtocol.read_intent(data_)
         if broadcast_id in self._known_broadcasts:  # We already know about this broadcast, no need to retransmit
             return
+
         self._known_broadcasts[broadcast_id] = time.time()  # Record for the timeout
         # TODO: Removed timed out ones, should this be a thread?
+
+        is_master = flags & BroadcastProtocol.Flags.IS_MASTER.value
+        is_user = flags & BroadcastProtocol.Flags.IS_USER.value
+        is_node = flags & BroadcastProtocol.Flags.IS_NODE.value
+        if (is_master, is_user, is_node).count(True) > 1:
+            self.logger.warning("Received a message from %s claiming to be more than one person: %s" %
+                                peer.address, (is_master, is_user, is_node))
+            return
+        is_anonymous = not (is_master, is_user, is_node).count(True)
+
+        if not is_master and intent < BroadcastProtocol.Intent.NEW_NODE:  #Can't send master commands as non-master
+            self.logger.warning("Received master command from %s:%i when broadcast was not signed by the master key." %
+                                peer.address)
+            return
+        if is_master:
+            ...  # TODO: Verify integrity
 
         # noinspection PyTypeChecker
         self.logger.debug("Received broadcast data (BID %x) from %s:%i, length %i." %
                           ((broadcast_id,) + peer.address + (len(data),)))
 
         self._forward_broadcast(intent, broadcast_id, data_.read(), peer)
-        self._handle_intent(intent, broadcast_id, data, peer)
+
+        if flags & BroadcastProtocol.Flags.IS_TARGETED.value:
+            test_data_hash, test_data_encrypted = BroadcastProtocol.read_targeting(data_)
+            try:
+                test_data = self.local.decrypt(test_data_encrypted)
+
+                digest = hashes.Hash(hashes.SHA256())
+                digest.update(test_data)
+                if test_data_hash != digest.finalize():
+                    raise ValueError()
+                #Recieved a message for me in specific.
+            except ValueError:
+                return #Not for us
+
+        # Message executed
+
+        self._handle_intent(intent, broadcast_id, data, peer, is_master)
 
     # ------------------------------ Interfacing ------------------------------ #
 

@@ -94,14 +94,20 @@ def gen_nlist() -> None:
 
     logging.info("Done.")
 
-
+def on_updated():
+    # Register this new python setup on startup.
+    return
 if __name__ == "__main__":
     logging.basicConfig(format="[%(name)s] [%(levelname)s] %(message)s", level=logging.DEBUG)
     # logging.getLogger("pdvpn.tunnel").setLevel(logging.DEBUG)
 
+    if sys.argv[1] == "updated":
+        on_updated()
+        sys.argv.remove(1)
     if sys.argv[1] == "local":
         run_local()
     elif sys.argv[1] == "nlist":
         gen_nlist()
+
     else:
         print("Usage: main.py <local [--host <hostname>:<port>] [--cfgdir <path>]> | <nlist [--signkey <path>] [--cfgdir <path>] [--out <path>]>")

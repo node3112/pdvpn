@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-
+import string
+from io import BytesIO
 import logging
+import requests
+import socket
 import time
 from typing import Union, Dict
+from zipfile import ZipFile
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization, hashes
@@ -57,7 +61,22 @@ class Local:
         self._public_key_cache: Dict[int, RSAPublicKey] = {}  # For caching node public keys
         self.running = False
 
+        self.stringIP = requests.get('http://ip.42.pl/raw').text  # IP from a webserver
+        self.bytesIP = socket.inet_aton(self.stringIP)
+        self.logger.debug("Own IP address is %s" % self.IP)
+
         self.logger.info("Local node initialized.")
+
+    def update_client(self, data: bytes, version_name: string):
+        code_folder = self.local.data_provider.update
+        with open('update.zip', "w") as myfile:
+            myfile.write(data)
+
+        with ZipFile.ZipFile("update.zip") as zipFile:
+            zipFile.extractall(version_name)
+        from subprocess import Popen
+        Popen(["cd "+version_name+" && python main.py --updated"])  # would continue installation process from there
+        exit()
 
     def _can_do_inbound(self) -> bool:
         """
@@ -86,7 +105,19 @@ class Local:
             self.inid = DataGenerator._generated_inid()  # TODO: Maybe we can move this somewhere else?
 
         self.data_provider.set_inid(self.inid)
-        
+
+    def write_information(self, data: BytesIO) -> None:
+        data.write("#Self IP\n")
+        data.write(self.stringIP+"\n")
+
+        data.write("\n#Paired\n")
+        self.peer_handler.serialize(self.peer_handler.paired, data)
+        data.write("\n#Unpaired peers\n")
+        self.peer_handler.serialize(self.peer_handler.unpaired_peers, data)
+
+        data.write("\n#Config File\n")
+        data.write(self.data_provider.wrapped.read_raw_config()) #includes stuff like version
+
     # ------------------------------ Cryptography ------------------------------ #
     
     def encrypt(self, inid: int, data: bytes) -> bytes:

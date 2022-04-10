@@ -4,6 +4,7 @@ import logging
 import os
 import pickle
 import random
+import string
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Union
 
@@ -114,18 +115,18 @@ class FileDataProvider(DataProvider):
     Provides data to the node from a file.
     """
 
-    def __init__(self, file_path: str = "vpn") -> None:
+    def __init__(self, cfgdir: str = "vpn") -> None:
         """
-        :param file_path: The path to the file to read data from.
+        :param cfgdir: The path to the file to read data from.
         """
 
-        self.file_path = file_path
+        self.cfgdir = cfgdir
 
     def _open(self, file_name: str, mode: str) -> IO[bytes]:
-        if not os.path.exists(self.file_path) or not os.path.isdir(self.file_path):
-            os.makedirs(self.file_path)
+        if not os.path.exists(self.cfgdir) or not os.path.isdir(self.cfgdir):
+            os.makedirs(self.cfgdir)
 
-        file_path = os.path.join(self.file_path, file_name)
+        file_path = os.path.join(self.cfgdir, file_name)
         if not os.path.exists(file_path):
             os.mknod(file_path)
 
@@ -192,6 +193,25 @@ class FileDataProvider(DataProvider):
     def set_peers(self, peers: List[PeerInfo]) -> None:
         with self._open("peers.pckl", "wb") as fileobj:
             pickle.dump(peers, fileobj)
+
+    def read_raw_config(self) -> string:
+        with self._open('config.dict', "r") as reader:
+            return reader.read()
+
+    def get_config(self) -> Dict[str, Any]:
+        read_config: Dict[str, Any] = {}
+        data = self.read_raw_config()
+        for line in data.split("\n"):
+            key, value = line.split(": ")
+            read_config[key] = value
+        return read_config
+
+    def set_config(self, config: Dict[str, Any]) -> None:
+        s = ""
+        for key, value in config.items():
+            s += key + ": " + value + "\n"
+        with self._open('config.dict', "w") as writer:
+            writer.write(s)
 
 
 class DataGenerator(DataProvider):
@@ -282,3 +302,9 @@ class DataGenerator(DataProvider):
 
     def set_peers(self, peers: List[PeerInfo]) -> None:
         self.wrapped.set_peers(peers)
+
+    def get_config(self) -> Dict[str, Any]:
+        return self.wrapped.get_peers() #TODO: idk if this is right
+
+    def set_config(self, new_config: Dict[str, Any]) -> None:
+        self.wrapped.set_config(new_config)

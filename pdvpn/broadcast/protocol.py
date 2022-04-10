@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 
+import bz2
+import string
+import struct
 from enum import Enum
 from io import BytesIO
-from typing import Tuple
+from typing import Tuple, Dict, Any
 
 
 class BroadcastProtocol:

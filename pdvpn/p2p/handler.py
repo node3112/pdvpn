@@ -2,6 +2,7 @@
 
 import logging
 import threading
+from io import BytesIO
 from typing import Union, List
 
 from . import Peer
@@ -183,6 +184,15 @@ class PeerHandler:
             self.logger.debug("Disconnecting %i unpaired peer(s)..." % len(self.unpaired_peers))
             for peer in self.unpaired_peers.copy():
                 peer.disconnect(reason)
-        
+
+    # ------------------------------ Interfacing ------------------------------ #
+    @staticmethod
+    def serialize(peer_list: List[Peer], data: BytesIO):
+        data.write(peer_list.to_bytes(4, "big", signed=False))
+        for peer in peer_list:
+            data.write(peer.hostname+":"+peer.port+"\n")
+        return
+
+
 
 from ..local import Local
