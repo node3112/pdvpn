@@ -120,3 +120,9 @@ class TunnelingProtocol:  # TODO: HMAC support
 
         PROXY_REQ = 6
         PROXY_RES = 7
+
+        #broadcast
+        BROADCAST = 8
+        TARGET_BROADCAST = 9
+
+

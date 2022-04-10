@@ -13,7 +13,6 @@ from typing import IO
 from . import config, encryption
 from .info import NodeList, PeerInfo
 
-
 class DataProvider(ABC):
     """
     Provides data to the node.
