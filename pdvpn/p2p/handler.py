@@ -55,7 +55,19 @@ class PeerHandler:
         self.unpaired_peers: List[Peer] = []
         
         self._lock = threading.RLock()  # Events will be fired in different threads
-        
+
+    def unpair(self, peer: Peer):
+        for existing in self.all_peers:
+            if existing.address == peer.address and existing.port == peer.port:
+                if existing.connected: existing.disconnect("unpair")
+                self.all_peers.remove(existing)
+                self.paired_peers.remove(existing)
+                self.unpaired_peers.remove(existing)
+                return True
+        return False
+
+
+
     # ------------------------------ Events ------------------------------ #
     
     def on_peer_connected(self, peer: Peer, outbound: bool = False) -> None:

@@ -80,13 +80,15 @@ class BroadcastHandler(threading.Thread):
             buffer = BytesIO()
             self.local.write_information(self, buffer)
             ... # TODO: Encrypt to master
-            ... # TODO: broadcast that data.
+            ... # TODO: broadcast that data
 
         elif intent == BroadcastProtocol.Intent.FORGET_PEER:
-            ...  # TODO: self.local.peer_handler.unpair(...)
+            address, port = BroadcastProtocol.read_peer_data(data)
+            success = self.local.peer_handler.unpair(Peer(address, port))
 
         elif intent == BroadcastProtocol.Intent.FACTORY_RESET:
             self.local.data_provider.reset_all()
+            ... #TODO: clear ram?
 
     # ------------------------------ Events ------------------------------ #
 

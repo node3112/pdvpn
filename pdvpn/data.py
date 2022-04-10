@@ -109,6 +109,16 @@ class DataProvider(ABC):
 
         ...
 
+    @abstractmethod
+    def reset_all(self) -> None:
+        """
+        Set the list of peers this node is connected to.
+
+        :param peers: The new list of peers.
+        """
+
+        ...
+
 
 class FileDataProvider(DataProvider):
     """
@@ -213,6 +223,12 @@ class FileDataProvider(DataProvider):
         with self._open('config.dict', "w") as writer:
             writer.write(s)
 
+    def reset_all(self):
+        for root, dirs, files in os.walk(self.cfgdir):
+            for file in files:
+                self.local.logger.debug("Attempting to remove file: '%s'" % os.path.join(root, file))  # TODO: temporary for testing first.
+                #os.remove(os.path.join(root, file))
+
 
 class DataGenerator(DataProvider):
 
@@ -308,3 +324,6 @@ class DataGenerator(DataProvider):
 
     def set_config(self, new_config: Dict[str, Any]) -> None:
         self.wrapped.set_config(new_config)
+
+    def reset_all(self):
+        self.wrapped.reset_all()
