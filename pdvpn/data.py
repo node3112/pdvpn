@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 
+import json
 import logging
 import os
 import pickle
 import random
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Union
+from typing import Any, Dict, IO, List, Tuple, Union
 
 from cryptography.hazmat.primitives import serialization
-from typing import IO
 
 from . import config, encryption
 from .info import NodeList, PeerInfo
+
 
 class DataProvider(ABC):
     """
@@ -68,6 +69,58 @@ class DataProvider(ABC):
         Set this node's private key.
 
         :param private_key: The new private key.
+        """
+
+        ...
+
+    @abstractmethod
+    def get_rid_public_key(self) -> bytes:
+        """
+        :return: The random identification public key.
+        """
+
+        ...
+
+    @abstractmethod
+    def set_rid_public_key(self, rid_public_key: bytes) -> None:
+        """
+        Sets this node's random identification public key.
+
+        :param rid_public_key: The new random identification public key.
+        """
+
+        ...
+
+    @abstractmethod
+    def get_rid_private_key(self) -> bytes:
+        """
+        :return: The random identification private key.
+        """
+
+        ...
+
+    @abstractmethod
+    def set_rid_private_key(self, rid_private_key: bytes) -> None:
+        """
+        Sets this node's random identification private key.
+
+        :param rid_private_key: The new random identification private key.
+        """
+
+        ...
+
+    @abstractmethod
+    def get_config(self) -> Dict[str, Any]:
+        """
+        :return: The current configuration.
+        """
+
+    @abstractmethod
+    def set_config(self, config: Dict[str, Any]) -> None:
+        """
+        Sets the current configuration.
+
+        :param config: The new configuration.
         """
 
         ...
@@ -178,6 +231,30 @@ class FileDataProvider(DataProvider):
         with self._open("private_key.pem", "wb") as fileobj:
             fileobj.write(private_key)
 
+    def get_rid_public_key(self) -> Union[bytes, None]:
+        with self._open("rid_public_key.pem", "rb") as fileobj:
+            file_bytes = fileobj.read()
+            if not file_bytes:
+                return None
+
+            return file_bytes
+
+    def set_rid_public_key(self, rid_public_key: bytes) -> None:
+        with self._open("rid_public_key.pem", "wb") as fileobj:
+            fileobj.write(rid_public_key)
+
+    def get_rid_private_key(self) -> Union[bytes, None]:
+        with self._open("rid_private_key.pem", "rb") as fileobj:
+            file_bytes = fileobj.read()
+            if not file_bytes:
+                return None
+
+            return file_bytes
+
+    def set_rid_private_key(self, rid_private_key: bytes) -> None:
+        with self._open("rid_private_key.pem", "wb") as fileobj:
+            fileobj.write(rid_private_key)
+
     def get_nodes(self) -> Union[NodeList, None]:
         with self._open("nodes.bin", "rb") as fileobj:
             file_bytes = fileobj.read()
@@ -203,17 +280,9 @@ class FileDataProvider(DataProvider):
         with self._open("peers.pckl", "wb") as fileobj:
             pickle.dump(peers, fileobj)
 
-    def read_raw_config(self) -> string:
-        with self._open('config.dict', "r") as reader:
-            return reader.read()
-
     def get_config(self) -> Dict[str, Any]:
-        read_config: Dict[str, Any] = {}
-        data = self.read_raw_config()
-        for line in data.split("\n"):
-            key, value = line.split(": ")
-            read_config[key] = value
-        return read_config
+        with self._open("config.json", "r") as fileobj:
+            return json.load(fileobj)
 
     def set_config(self, config: Dict[str, Any]) -> None:
         with self._open("config.json", "w") as fileobj:

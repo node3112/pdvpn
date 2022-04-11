@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
 
+import logging
+import threading
+import time
+from io import BytesIO
+from typing import Union, Dict
+
+from cryptography.hazmat.primitives import hashes
+
+from .protocol import BroadcastProtocol
+from .. import config
+from ..info import NodeList
+
 
 class BroadcastHandler(threading.Thread):
     """
@@ -7,11 +19,24 @@ class BroadcastHandler(threading.Thread):
     """
 
     def __init__(self, local: "Local") -> None:
+        super().__init__()
+
         self.logger = logging.getLogger("pdvpn.broadcast.handler")
 
         self.local = local
 
-        self._known_broadcasts = {}
+        self._known_broadcasts: Dict[int, float] = {}  # Records the times of each broadcast
+
+        self._lock = threading.RLock()
+
+    def run(self) -> None:
+        while self.local.running:
+            with self._lock:
+                for broadcast_id, initial_time in list(self._known_broadcasts.items()):
+                    if time.time() - initial_time > config.BROADCAST_EXPIRY:
+                        del self._known_broadcasts[broadcast_id]
+
+            time.sleep(0.1)
 
     # ------------------------------ Internal ------------------------------ #
 
@@ -44,7 +69,8 @@ class BroadcastHandler(threading.Thread):
             ...  # TODO: Update in RAM as well
 
         elif intent == BroadcastProtocol.Intent.UPDATE_CLIENT:
-            ...  # TODO: Idk, a lot of client determining stuff
+            data, version_name = BroadcastProtocol.read_update(data);
+            self.local.update_client(data)
 
         elif intent == BroadcastProtocol.Intent.UPDATE_NODE_LIST:
             # TODO: Make this a packet cos bruh
@@ -103,12 +129,13 @@ class BroadcastHandler(threading.Thread):
         """
 
         data_ = BytesIO(data)
-        intent, broadcast_id = BroadcastProtocol.read_intent(data_)
+        intent, broadcast_id, flags, send_time = BroadcastProtocol.read_intent(data_)
+        if time.time() - send_time > config.BROADCAST_EXPIRY: #Outdated send time.
+            return
         if broadcast_id in self._known_broadcasts:  # We already know about this broadcast, no need to retransmit
             return
 
         self._known_broadcasts[broadcast_id] = time.time()  # Record for the timeout
-        # TODO: Removed timed out ones, should this be a thread?
 
         is_master = flags & BroadcastProtocol.Flags.IS_MASTER.value
         is_user = flags & BroadcastProtocol.Flags.IS_USER.value
@@ -129,7 +156,6 @@ class BroadcastHandler(threading.Thread):
         # noinspection PyTypeChecker
         self.logger.debug("Received broadcast data (BID %x) from %s:%i, length %i." %
                           ((broadcast_id,) + peer.address + (len(data),)))
-
         self._forward_broadcast(intent, broadcast_id, data_.read(), peer)
 
         if flags & BroadcastProtocol.Flags.IS_TARGETED.value:

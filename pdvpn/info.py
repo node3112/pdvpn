@@ -60,6 +60,7 @@ class NodeList:
 
         self._nodes: Dict[int, NodeList.NodeInfo] = {}
         self._unverified: Dict[int, NodeList.UnverifiedInfo] = {}
+        self._public_keys: List[bytes] = []
 
     def __contains__(self, key: int) -> bool:
         return key in self._nodes or key in self._unverified

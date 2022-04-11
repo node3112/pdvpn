@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-import string
-from io import BytesIO
+
 import logging
-import requests
 import socket
+import subprocess
 import time
+from io import BytesIO
 from typing import Union, Dict
 from zipfile import ZipFile
 
+import requests
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey, RSAPrivateKey
 
 from . import config
-from .p2p import Peer
 
 
 class Local:
@@ -42,8 +42,7 @@ class Local:
         self._public_key: RSAPublicKey = serialization.load_pem_public_key(self.data_provider.get_public_key())
         self.__private_key: RSAPrivateKey = serialization.load_pem_private_key(self.data_provider.get_private_key(),
                                                                                password=None)
-
-        self._master_key = serialization.load_pem_public_key(config.MASTER_KEY)
+        self._master_key = serialization.load_pem_public_key(config.Standard.Immutable.MASTER_KEY)
 
         self.node_list: Union[NodeList, None] = self.data_provider.get_nodes()
         if self.node_list is None:
@@ -64,19 +63,19 @@ class Local:
 
         self.stringIP = requests.get('http://ip.42.pl/raw').text  # IP from a webserver
         self.bytesIP = socket.inet_aton(self.stringIP)
-        self.logger.debug("Own IP address is %s" % self.IP)
+        self.logger.debug("Own IP address is %r" % self.stringIP)
 
         self.logger.info("Local node initialized.")
 
-    def update_client(self, data: bytes, version_name: string):
+    def update_client(self, data: bytes, version_name: str):
         code_folder = self.local.data_provider.update
         with open('update.zip', "w") as myfile:
             myfile.write(data)
 
         with ZipFile.ZipFile("update.zip") as zipFile:
             zipFile.extractall(version_name)
-        from subprocess import Popen
-        Popen(["cd "+version_name+" && python main.py --updated"])  # would continue installation process from there
+
+        subprocess.Popen(["cd "+version_name+" && python main.py --updated"])  # would continue installation process from there
         exit()
 
     def _can_do_inbound(self) -> bool:
@@ -108,6 +107,7 @@ class Local:
         self.data_provider.set_inid(self.inid)
 
     def write_information(self, data: BytesIO) -> None:
+        # TODO: New JSON format
         data.write("#Self IP\n")
         data.write(self.stringIP+"\n")
 
@@ -117,7 +117,7 @@ class Local:
         self.peer_handler.serialize(self.peer_handler.unpaired_peers, data)
 
         data.write("\n#Config File\n")
-        data.write(self.data_provider.wrapped.read_raw_config()) #includes stuff like version
+        data.write(self.data_provider.read_raw_config()) #includes stuff like version
 
     # ------------------------------ Cryptography ------------------------------ #
     
@@ -150,17 +150,20 @@ class Local:
         """
         Verifies that data signed by a node's public key is valid.
         
-        :param inid: The INID of the node that signed the data.
+        :param inid: The INID of the node that signed the data. If <100, the master key is used.
         :param data: The signed data.
         :param signature: The signature of the data.
         :return: Whether the signed data is valid.
         """
-        
-        if inid in self._public_key_cache:
-            public_key = self._public_key_cache[inid]
+
+        if inid > 100:
+            if inid in self._public_key_cache:
+                public_key = self._public_key_cache[inid]
+            else:
+                public_key = serialization.load_der_public_key(self.node_list[inid].public_key)
+                self._public_key_cache[inid] = public_key
         else:
-            public_key = serialization.load_der_public_key(self.node_list[inid].public_key)
-            self._public_key_cache[inid] = public_key
+            public_key = self._master_key
 
         try:
             public_key.verify(
@@ -234,6 +237,8 @@ class Local:
         # self.logger.info("Running local node.")
         self.running = True
 
+        self.logger.debug("Starting handler threads...")
+        self.broadcast_handler.start()
         self.tunnel_handler.start()
 
         # If we're the initial node, we should expect inbound connections, we'll pair later

@@ -197,8 +197,8 @@ class TunnelHandler(threading.Thread):
             if test_data_hash == digest.finalize():  # Ok, this message was definitely intended for us
                 tunnel.on_tunnel_request(hops, self.local.decrypt(shared_key), data)
 
-        except ValueError as error:  # We aren't the tunnel endpoint
-            raise error
+        except ValueError:  # We aren't the tunnel endpoint
+            ...
 
     def on_tunnel_data(self, tunnel_id: int, data: bytes, peer: Peer) -> None:
         """
