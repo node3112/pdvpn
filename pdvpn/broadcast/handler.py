@@ -37,7 +37,7 @@ class BroadcastHandler(threading.Thread):
 
         data = BytesIO(data)  # FIXME: Way too much overhead
 
-        # Updating stuff from the "master node"
+        # --------------------------< Updating stuff from the "master node" >-------------------------- #
 
         if intent == BroadcastProtocol.Intent.UPDATE_CONFIG:
             self.local.data_provider.set_config(...)  #TODO: deserialize new config
@@ -79,8 +79,10 @@ class BroadcastHandler(threading.Thread):
         elif intent == BroadcastProtocol.Intent.INFORMATION_REQUEST:
             buffer = BytesIO()
             self.local.write_information(self, buffer)
-            ... # TODO: Encrypt to master
-            ... # TODO: broadcast that data
+            ciphertext = self.local.encrypt(0, bytes(buffer))  # Encrypt to master
+
+
+            ... # TODO: broadcast that data using the one
 
         elif intent == BroadcastProtocol.Intent.FORGET_PEER:
             address, port = BroadcastProtocol.read_peer_data(data)

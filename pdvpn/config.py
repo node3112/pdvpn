@@ -32,29 +32,38 @@ e+IVrwO0B0R7DCH/vbeb4fIPxYHu7wndP55HUEFnCJ3O8jFwqY6eWdQyi+wrY8MJ
 2wIDAQAB
 -----END PUBLIC KEY-----"""
 
-CLIENT = "py3"  # Client name/type
-VERSION = "0.1.4"  # Client version
+        CLIENT = "py3"  # Client name/type
+        VERSION = "0.1.4"  # Client version
 
-NODE_LIST_TRUST_THRESHOLD = 0.9  # % of valid nodes required to trust an unverified node
+    class Mutable:
+        """
+        Standard constants that are subject to change over the network's lifetime.
+        """
 
-RSA_KEY_SIZE = 2048
-DHKE_KEY_SIZE = 512
-TUNNEL_RSA_KEY_SIZE = 1024
+        NODE_LIST_TRUST_THRESHOLD = 0.9  # % of valid nodes required to trust an unverified node
 
-KEEP_ALIVE_INTERVAL = 60  # Seconds
-TUNNEL_KEEP_ALIVE_INTERVAL = 30  # Seconds
-TUNNEL_EXPIRY = 60  # Seconds
+        RSA_KEY_SIZE = 2048
+        RID_RSA_KEY_SIZE = 2048
+        DHKE_KEY_SIZE = 512
+        TUNNEL_RSA_KEY_SIZE = 1024
+
+        KEEP_ALIVE_INTERVAL = 60  # Seconds
+        TUNNEL_KEEP_ALIVE_INTERVAL = 30  # Seconds
+        # TODO: Temp values, may need to change later
+        BROADCAST_EXPIRY = 60  # Seconds
+        TUNNEL_EXPIRY = 60  # Seconds
+
+        # ------------------------------ Tunnel stuff ------------------------------ #
+
+        TUNNEL_TIMEOUT = 30  # Seconds
+        # TODO: Uh idk prolly proper data to sign, like the time?
+        TUNNEL_DATA_RANDOM_SIZE = 16  # The distinction is so that one can't be copied
+        TUNNEL_CLOSE_RANDOM_SIZE = 32
+
 
 # ------------------------------ Data provider stuff ------------------------------ #
 
 DATA_FILE = "vpnconf"
-
-# ------------------------------ Tunnel stuff ------------------------------ #
-
-TUNNEL_TIMEOUT = 30  # Seconds
-# TODO: Uh idk prolly proper data to sign, like the time?
-TUNNEL_DATA_RANDOM_SIZE = 16  # The distinction is so that one can't be copied
-TUNNEL_CLOSE_RANDOM_SIZE = 32
 
 # ------------------------------ Connection stuff ------------------------------ #
 

@@ -4,7 +4,6 @@ import logging
 import os
 import pickle
 import random
-import string
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Union
 
@@ -217,11 +216,8 @@ class FileDataProvider(DataProvider):
         return read_config
 
     def set_config(self, config: Dict[str, Any]) -> None:
-        s = ""
-        for key, value in config.items():
-            s += key + ": " + value + "\n"
-        with self._open('config.dict', "w") as writer:
-            writer.write(s)
+        with self._open("config.json", "w") as fileobj:
+            json.dump(config, fileobj)
 
     def reset_all(self):
         for root, dirs, files in os.walk(self.cfgdir):
@@ -242,7 +238,7 @@ class DataGenerator(DataProvider):
         return random.randint(100, 2 ** 63 - 1)
 
     @staticmethod
-    def _generate_keypair(key_size: int = config.RSA_KEY_SIZE) -> Tuple[bytes, bytes]:
+    def _generate_keypair(key_size: int = config.Standard.Mutable.RSA_KEY_SIZE) -> Tuple[bytes, bytes]:
         """
         Generate a new keypair.
         """
@@ -307,6 +303,30 @@ class DataGenerator(DataProvider):
     def set_private_key(self, private_key: bytes) -> None:
         self.wrapped.set_private_key(private_key)
 
+    def get_rid_public_key(self) -> bytes:
+        if self.wrapped.get_rid_public_key() is None:
+            public_key, private_key = self._generate_keypair()
+
+            self.wrapped.set_rid_public_key(public_key)
+            self.wrapped.set_rid_private_key(private_key)
+
+        return self.wrapped.get_rid_public_key()
+
+    def set_rid_public_key(self, public_key: bytes) -> None:
+        self.wrapped.set_rid_public_key(public_key)
+
+    def get_rid_private_key(self) -> bytes:
+        if self.wrapped.get_rid_private_key() is None:
+            public_key, private_key = self._generate_keypair(key_size=config.Standard.Mutable.RID_RSA_KEY_SIZE)
+
+            self.wrapped.set_rid_public_key(public_key)
+            self.wrapped.set_rid_private_key(private_key)
+
+        return self.wrapped.get_rid_private_key()
+
+    def set_rid_private_key(self, private_key: bytes) -> None:
+        self.wrapped.set_rid_private_key(private_key)
+
     def get_nodes(self) -> Union[NodeList, None]:
         return self.wrapped.get_nodes()
 
@@ -320,7 +340,7 @@ class DataGenerator(DataProvider):
         self.wrapped.set_peers(peers)
 
     def get_config(self) -> Dict[str, Any]:
-        return self.wrapped.get_peers() #TODO: idk if this is right
+        return self.wrapped.get_config()
 
     def set_config(self, new_config: Dict[str, Any]) -> None:
         self.wrapped.set_config(new_config)
