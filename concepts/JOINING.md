@@ -1,3 +1,4 @@
+#Joining 
 the new node selects a potential friend from the list. He marks it out so that only the potential friend himself will know that he is the guy he wants to connect to.
 The entry point does not know however who this potential friend is. The entry point just forwards the message in the hopes that it will be recieved.
 This message will not be spammed because there is proof of work on top of it.
@@ -28,22 +29,27 @@ New node sends IP to potential friend which is double checked by him.
 If okay then potential friend connects to new node and they pair.
 Now that they are all paired up, the potential friend would broadcast the entry point's commitment, and he would not be able to talk himself out of it because he signed it.
 
-NOTE: the new node "pays" for all the broadcasts and connects via POW. This way he can't spam register himself with false hashes.
-NOTE: if the potential friend publicices the commitment too early, he has still paid for that.
-NOTE: If anyone does not follow the protocol then the connection is simply refused by the other legit party.
-NOTE: If the potential friend would just refuse to do the POW at all (maybe because already too many peers he sais),
+### Notes
+* the new node "pays" for all the broadcasts and connects via POW. This way he can't spam register himself with false hashes.
+
+* if the potential friend publicices the commitment too early, he has still paid for that.
+
+* If anyone does not follow the protocol then the connection is simply refused by the other legit party.
+
+* If the potential friend would just refuse to do the POW at all (maybe because already too many peers he sais),
 then that doesn't matter, because then the entry point won't get switched and the new node could just select another potential friend. And if he honestly
 said that he had too many peers then that does reduce the network stress.
-NOTE: An alternative to broadcasting the hash(hash(IP)) is by broadcasting half the hash(IP), and then let someone else finish the rest.
 
------------ Entry Point Picking -----------
+* An alternative to broadcasting the hash(hash(IP)) is by broadcasting half the hash(IP), and then let someone else finish the rest.
+
+## Entry Point Picking
 * We could make an RNG by having every node sending a random piece of data to the network and signing it. Now we will assume that every node reciesves it.
 If we hash all those random pieces together then we will have a random number which everybody can agree on. This could for example be used to select the new entry points.
 
 * We could have the nodes be entry point in the order that they connected them in. So like the first node would be entry point and connect 2 nodes or wait an hour
 (so that they can't be it forever if they refuse to work)
 
------------ How Node Connect To Entry Point ----------
+## How Node Connect To Entry Point
 
 * Discord based voting principle for entry point selection. Every node would vote in the discord server, and then the newly joining node would count all the votes.
 The discord server would get shut down because of authority pretty soon though, however, that means that it is time
