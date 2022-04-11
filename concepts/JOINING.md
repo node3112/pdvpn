@@ -1,4 +1,4 @@
-#Joining 
+# Joining 
 the new node selects a potential friend from the list. He marks it out so that only the potential friend himself will know that he is the guy he wants to connect to.
 The entry point does not know however who this potential friend is. The entry point just forwards the message in the hopes that it will be recieved.
 This message will not be spammed because there is proof of work on top of it.
