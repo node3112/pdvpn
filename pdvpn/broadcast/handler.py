@@ -33,7 +33,7 @@ class BroadcastHandler(threading.Thread):
         while self.local.running:
             with self._lock:
                 for broadcast_id, initial_time in list(self._known_broadcasts.items()):
-                    if time.time() - initial_time > config.BROADCAST_EXPIRY:
+                    if time.time() - initial_time > config.Standard.Changeable.BROADCAST_EXPIRY:
                         del self._known_broadcasts[broadcast_id]
 
             time.sleep(0.1)
@@ -130,7 +130,7 @@ class BroadcastHandler(threading.Thread):
 
         data_ = BytesIO(data)
         intent, broadcast_id, flags, send_time = BroadcastProtocol.read_intent(data_)
-        if time.time() - send_time > config.BROADCAST_EXPIRY: #Outdated send time.
+        if time.time() - send_time > config.Standard.Changeable.BROADCAST_EXPIRY: #Outdated send time.
             return
         if broadcast_id in self._known_broadcasts:  # We already know about this broadcast, no need to retransmit
             return

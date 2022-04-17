@@ -61,7 +61,7 @@ class InboundPeer(Peer):
 
         self.logger = logging.getLogger("pdvpn.p2p.inbound")
 
-        self._last_keep_alive = time.time() - config.KEEP_ALIVE_INTERVAL
+        self._last_keep_alive = time.time() - config.Standard.Changeable.KEEP_ALIVE_INTERVAL
         self._awaiting_keep_alive = False
 
     def run(self) -> None:
@@ -81,7 +81,7 @@ class InboundPeer(Peer):
                     self._awaiting_keep_alive = False
 
                 # Keepalive
-                if time.time() - self._last_keep_alive > config.KEEP_ALIVE_INTERVAL:
+                if time.time() - self._last_keep_alive > config.Standard.Changeable.KEEP_ALIVE_INTERVAL:
                     if self._awaiting_keep_alive:
                         self.logger.warning("%s:%d did not respond to keepalive." % self.address)
                         self.disconnect("timeout")

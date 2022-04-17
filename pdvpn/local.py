@@ -42,7 +42,7 @@ class Local:
         self._public_key: RSAPublicKey = serialization.load_pem_public_key(self.data_provider.get_public_key())
         self.__private_key: RSAPrivateKey = serialization.load_pem_private_key(self.data_provider.get_private_key(),
                                                                                password=None)
-        self._master_key = serialization.load_pem_public_key(config.Standard.Immutable.MASTER_KEY)
+        self._master_key = serialization.load_pem_public_key(config.Standard.Unchangeable.MASTER_KEY)
 
         self.node_list: Union[NodeList, None] = self.data_provider.get_nodes()
         if self.node_list is None:

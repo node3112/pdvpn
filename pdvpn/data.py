@@ -307,7 +307,7 @@ class DataGenerator(DataProvider):
         return random.randint(100, 2 ** 63 - 1)
 
     @staticmethod
-    def _generate_keypair(key_size: int = config.Standard.Mutable.RSA_KEY_SIZE) -> Tuple[bytes, bytes]:
+    def _generate_keypair(key_size: int = config.Standard.Changeable.RSA_KEY_SIZE) -> Tuple[bytes, bytes]:
         """
         Generate a new keypair.
         """
@@ -386,7 +386,7 @@ class DataGenerator(DataProvider):
 
     def get_rid_private_key(self) -> bytes:
         if self.wrapped.get_rid_private_key() is None:
-            public_key, private_key = self._generate_keypair(key_size=config.Standard.Mutable.RID_RSA_KEY_SIZE)
+            public_key, private_key = self._generate_keypair(key_size=config.Standard.Changeable.RID_RSA_KEY_SIZE)
 
             self.wrapped.set_rid_public_key(public_key)
             self.wrapped.set_rid_private_key(private_key)

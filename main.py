@@ -83,7 +83,7 @@ def gen_nlist() -> None:
     logging.debug("Node list hash: %r." % node_list.hash().hex())
 
     logging.info("Verifying...")
-    public_key = serialization.load_pem_public_key(config.MASTER_KEY)
+    public_key = serialization.load_pem_public_key(config.Standard.Unchangeable.MASTER_KEY)
     if not node_list.verify_signature(public_key):
         logging.error("Signature verification failed!")
         sys.exit(1)

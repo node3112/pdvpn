@@ -22,7 +22,7 @@ class Standard:
         :param config:
         """
 
-    class Immutable:
+    class Unchangeable:
         """
         Standard constants that are not subject to change over the network lifetime.
         """
@@ -56,7 +56,7 @@ e+IVrwO0B0R7DCH/vbeb4fIPxYHu7wndP55HUEFnCJ3O8jFwqY6eWdQyi+wrY8MJ
         CLIENT = "py3"  # Client name/type
         VERSION = "0.1.4"  # Client version
 
-    class Mutable:
+    class Changeable:
         """
         Standard constants that are subject to change over the network's lifetime.
         """
@@ -90,5 +90,6 @@ DATA_FILE = "vpnconf"
 
 INITIAL_NODE = True  # Are we the initial node on the network?
 INBOUND_ENABLED = True
+# TODO: Deprecate
 INBOUND_HOSTNAME = "localhost"  # Local node server's hostname
 INBOUND_PORT = 5002  # Local node server's port, should prolly be 5002

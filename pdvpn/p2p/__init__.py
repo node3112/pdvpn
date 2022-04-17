@@ -60,7 +60,7 @@ class Peer(threading.Thread):
 
             if outbound:  # We're connecting to them
                 self.logger.debug("Generating DHKE parameters...")
-                parameters = dh.generate_parameters(generator=2, key_size=config.DHKE_KEY_SIZE)
+                parameters = dh.generate_parameters(generator=2, key_size=config.Standard.Changeable.DHKE_KEY_SIZE)
                 self.logger.debug("Generating a_private_key...")
                 a_private_key = parameters.generate_private_key()
                 self.logger.debug("Generating a_peer_public_key...")

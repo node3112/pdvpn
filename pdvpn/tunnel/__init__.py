@@ -45,7 +45,7 @@ class Tunnel:
         :return: Whether the tunnel has expired.
         """
 
-        return time.time() - self._time_created > config.TUNNEL_EXPIRY
+        return time.time() - self._time_created > config.Standard.Changeable.TUNNEL_EXPIRY
 
     @property
     def last_keep_alive(self) -> float:  # TODO: Use this in the tunnel handler to manage keep alives
@@ -113,13 +113,13 @@ class Tunnel:
 
         self.endpoint: Union[NodeList.NodeInfo, None] = None  # Only if we're the one that started the tunnel
 
-        self._encryptor: Union[_AEADEncryptionContext, None] = None  # FIXME: Typing
+        self._encryptor: Union[_AEADEncryptionContext, None] = None
         self._decryptor: Union[_AEADCipherContext, None] = None
 
         self.alive = False
 
         self._latency = 0
-        self._last_keep_alive = time.time() - config.TUNNEL_KEEP_ALIVE_INTERVAL
+        self._last_keep_alive = time.time() - config.Standard.Changeable.TUNNEL_KEEP_ALIVE_INTERVAL
         self._awaiting_keep_alive = -1
 
         # Threading stuff
@@ -386,7 +386,7 @@ class Tunnel:
 
         if self.owner:
             if self.alive:
-                random_data = os.urandom(config.TUNNEL_CLOSE_RANDOM_SIZE)
+                random_data = os.urandom(config.Standard.Changeable.TUNNEL_CLOSE_RANDOM_SIZE)
                 signature = self.__private_key.sign(
                     random_data,
                     padding.PSS(

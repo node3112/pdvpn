@@ -39,7 +39,7 @@ class TunnelHandler(threading.Thread):
                         del self._tunnels[tunnel_id]  # No need to "close" it as it was never "open", to us at least
 
                 else:
-                    if tunnel.last_keep_alive > config.TUNNEL_KEEP_ALIVE_INTERVAL:
+                    if tunnel.last_keep_alive > config.Standard.Changeable.TUNNEL_KEEP_ALIVE_INTERVAL:
                         if tunnel.awaiting_keep_alive:
                             self.logger.debug("Tunnel %x timed out." % tunnel_id)
                             tunnel.close()
@@ -252,7 +252,7 @@ class TunnelHandler(threading.Thread):
 
         if tunnel.next_hop is not None or tunnel.prev_hop is not None:
             # Definitely something malicious going on if this fails
-            if len(random_data) != config.TUNNEL_CLOSE_RANDOM_SIZE or not tunnel.verify(random_data, signature):
+            if len(random_data) != config.Standard.Changeable.TUNNEL_CLOSE_RANDOM_SIZE or not tunnel.verify(random_data, signature):
                 self.logger.warning("Tunnel close from %s:%i failed, signature invalid." % peer.address)
                 # TODO: Should we handle this in any way, like disconnecting the peer?
                 return
@@ -277,7 +277,7 @@ class TunnelHandler(threading.Thread):
             raise LookupError("Node with INID %x not found in node list." % inid)
 
         tunnel_id = (self.local.inid * inid) % int(time.time())  # TODO: Better randomness
-        public_key, private_key = encryption.generate_rsa_keypair(key_size=config.TUNNEL_RSA_KEY_SIZE)
+        public_key, private_key = encryption.generate_rsa_keypair(key_size=config.Standard.Changeable.TUNNEL_RSA_KEY_SIZE)
         tunnel = Tunnel(self.local, tunnel_id, public_key, private_key)
         tunnel.endpoint = self.local.node_list[inid]
 

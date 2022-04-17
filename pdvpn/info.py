@@ -320,7 +320,7 @@ class NodeList:
             :return: If the node is trusted or not.
             """
 
-            if len(self.signatures) < len(node_list.nodes) * config.NODE_LIST_TRUST_THRESHOLD:
+            if len(self.signatures) < len(node_list.nodes) * config.Standard.Changeable.NODE_LIST_TRUST_THRESHOLD:
                 return False
 
             return True
